@@ -1,0 +1,12 @@
+{
+  "name": "Cooper's Math Tickets",
+  "short_name": "Tickets",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fbf6e9",
+  "theme_color": "#d94f3d",
+  "icons": [
+    { "src": "docs/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "docs/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

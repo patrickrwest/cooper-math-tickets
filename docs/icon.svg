@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <mask id="notch">
+      <rect width="512" height="512" fill="#fff"/>
+      <circle cx="48" cy="256" r="30" fill="#000"/>
+      <circle cx="464" cy="256" r="30" fill="#000"/>
+    </mask>
+  </defs>
+  <rect width="512" height="512" fill="#fbf6e9"/>
+  <g mask="url(#notch)">
+    <rect x="48" y="116" width="416" height="280" rx="28" fill="#d94f3d"/>
+    <rect x="48" y="116" width="416" height="280" rx="28" fill="none" stroke="#fff8ef" stroke-width="8" stroke-dasharray="16 12"/>
+  </g>
+  <text x="256" y="238" text-anchor="middle" font-family="Fredoka, 'Arial Rounded MT Bold', Arial, sans-serif" font-weight="700" font-size="96" fill="#fff8ef">3 + 4</text>
+  <text x="256" y="350" text-anchor="middle" font-family="Fredoka, 'Arial Rounded MT Bold', Arial, sans-serif" font-weight="700" font-size="96" fill="#f5c84b">= 7</text>
+</svg>
