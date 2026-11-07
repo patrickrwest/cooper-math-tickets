@@ -1,0 +1,520 @@
+<title>Cooper's Math Tickets</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: one centered "ticket booth" card; kid screen inside, collapsible parent panel above. */
+:root {
+  --paper: #fbf6e9; --ink: #1f2a44; --ink-soft: #55607a; --ticket: #d94f3d; --ticket-ink: #fff8ef;
+  --butter: #f5c84b; --mint: #3f9b7a; --sky: #3b7dd8; --card: #ffffff; --line: #e3dccb; --bar: #1f2a44; --bar-ink: #f4efe2;
+  --sq-light: #f0d9b5; --sq-dark: #b58863; --sq-pick: #f5c84b;
+  --display: "Fredoka", "Arial Rounded MT Bold", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #161c2c; --ink: #f2ecdc; --ink-soft: #aab3c8; --ticket: #e8644f; --ticket-ink: #fff8ef;
+  --butter: #f2c94c; --mint: #5cc39d; --sky: #6fa3f0; --card: #1f2740; --line: #313b58; --bar: #0d1220; --bar-ink: #e9e3d3;
+  --sq-light: #d8c3a0; --sq-dark: #8a6244; --sq-pick: #f2c94c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #161c2c; --ink: #f2ecdc; --ink-soft: #aab3c8; --ticket: #e8644f; --ticket-ink: #fff8ef;
+  --butter: #f2c94c; --mint: #5cc39d; --sky: #6fa3f0; --card: #1f2740; --line: #313b58; --bar: #0d1220; --bar-ink: #e9e3d3;
+  --sq-light: #d8c3a0; --sq-dark: #8a6244; --sq-pick: #f2c94c; color-scheme: dark }
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 17px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 40px; }
+.wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 16px; }
+.bar { background: var(--bar); color: var(--bar-ink); border-radius: 14px; padding: 12px 14px; display: grid; gap: 10px; }
+.bar summary { font-family: var(--display); font-weight: 600; letter-spacing: .02em; cursor: pointer; }
+.bar p { margin: 0; font-size: 14px; opacity: .85; }
+.bar .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar button, .bar input { font: 600 14px var(--body); background: transparent; color: var(--bar-ink); border: 1px solid color-mix(in srgb, var(--bar-ink) 35%, transparent); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.bar input { cursor: text; width: 9ch; }
+.bar input.wide { width: 16ch; }
+.bar button[aria-pressed="true"] { background: var(--butter); color: #1f2a44; border-color: var(--butter); }
+.bar h4 { margin: 6px 0 0; font: 600 14px var(--display); letter-spacing: .04em; text-transform: uppercase; opacity: .7; }
+.bar table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.bar td { padding: 3px 4px; border-top: 1px solid color-mix(in srgb, var(--bar-ink) 15%, transparent); }
+.bar td:last-child { text-align: right; }
+.screen { background: var(--card); border: 2px solid var(--line); border-radius: 28px; padding: 28px 22px; min-height: 520px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; text-align: center; }
+h1, h2 { font-family: var(--display); margin: 0; text-wrap: balance; line-height: 1.1; }
+h1 { font-size: clamp(30px, 6vw, 44px); }
+h2 { font-size: clamp(22px, 4.5vw, 30px); font-weight: 600; }
+.sub { color: var(--ink-soft); margin: 0; max-width: 34ch; line-height: 1.45; }
+.bank { display: inline-flex; align-items: center; gap: 10px; background: var(--ticket); color: var(--ticket-ink); border-radius: 999px; padding: 8px 18px; font: 700 18px var(--display); font-variant-numeric: tabular-nums; }
+.bank small { font: 600 13px var(--body); opacity: .9; }
+.tickets { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.tk { width: 92px; height: 54px; border-radius: 8px; display: grid; place-items: center; font: 700 15px var(--display); letter-spacing: .06em;
+  border: 2px dashed var(--line); color: var(--ink-soft); position: relative; }
+.tk.on { background: var(--ticket); color: var(--ticket-ink); border: 2px solid var(--ticket); }
+.tk::before, .tk::after { content: ""; position: absolute; top: 50%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%; background: var(--card); }
+.tk::before { left: -8px; } .tk::after { right: -8px; }
+.clock { font: 700 clamp(56px, 14vw, 88px)/1 var(--display); font-variant-numeric: tabular-nums; }
+.big { font: 700 20px var(--display); background: var(--ticket); color: var(--ticket-ink); border: 0; border-radius: 999px; padding: 16px 30px; cursor: pointer; min-width: 240px; }
+.big.alt { background: var(--mint); }
+.big.sky { background: var(--sky); color: #fff; }
+.big.quiet { background: transparent; color: var(--ink); border: 2px solid var(--line); }
+.big:disabled { opacity: .45; cursor: not-allowed; }
+.choices { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 340px; }
+button:focus-visible { outline: 3px solid var(--butter); outline-offset: 3px; }
+.problem { font: 700 clamp(64px, 16vw, 104px)/1 var(--display); font-variant-numeric: tabular-nums; }
+.answer { min-width: 2.2ch; display: inline-block; border-bottom: 6px solid var(--butter); }
+.meta { display: flex; gap: 18px; color: var(--ink-soft); font-weight: 700; font-variant-numeric: tabular-nums; }
+.timerbar { width: 100%; max-width: 420px; height: 12px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.timerbar i { display: block; height: 100%; background: var(--mint); transition: width .25s linear; }
+.pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 330px; }
+.pad button { font: 700 30px var(--display); padding: 14px 0; border-radius: 16px; border: 2px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; }
+.pad .go { background: var(--mint); color: #fff; border-color: var(--mint); }
+.stamp { font: 700 15px var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--mint); }
+.stamp.miss { color: var(--ticket); }
+.note { font-size: 14px; color: var(--ink-soft); }
+/* Tic-tac-toe */
+.ttt { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: min(100%, 300px); }
+.ttt button { aspect-ratio: 1; font: 700 54px/1 var(--display); border-radius: 16px; border: 2px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; }
+.ttt button.x { color: var(--ticket); } .ttt button.o { color: var(--sky); }
+.ttt button.win { background: var(--butter); border-color: var(--butter); color: #1f2a44; }
+.ttt button:disabled { cursor: default; }
+/* Chess */
+.board { display: grid; grid-template-columns: repeat(8, 1fr); width: min(100%, 360px); aspect-ratio: 1; border: 4px solid var(--sq-dark); border-radius: 8px; overflow: hidden; }
+.board button { border: 0; padding: 0; font: 400 clamp(22px, 7vw, 36px)/1 serif; cursor: pointer; display: grid; place-items: center; color: #1a1a1a; }
+.board .l { background: var(--sq-light); } .board .d { background: var(--sq-dark); }
+.board .pick { box-shadow: inset 0 0 0 4px var(--sq-pick); }
+.board .ok { background: var(--mint); color: #fff; }
+.board .bad { background: var(--ticket); }
+.board .white { color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 2px #000; }
+.lessonbar { display: flex; gap: 8px; justify-content: center; }
+.lessonbar i { width: 12px; height: 12px; border-radius: 50%; background: var(--line); display: block; }
+.lessonbar i.done { background: var(--mint); }
+/* Store */
+.shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; width: 100%; }
+.sticker { border: 2px solid var(--line); border-radius: 18px; padding: 12px 10px; display: grid; gap: 6px; justify-items: center; background: var(--paper); cursor: pointer; color: var(--ink); font-family: var(--body); }
+.sticker:disabled { opacity: .5; cursor: not-allowed; }
+.sticker .badge { width: 70px; height: 70px; border-radius: 50%; display: grid; place-items: center; font: 700 26px var(--display); color: #fff; }
+.sticker.t1 .badge { width: 60px; height: 60px; } .sticker.t3 .badge { width: 84px; height: 84px; font-size: 32px; }
+.sticker b { font: 600 15px var(--display); }
+.sticker .cost { font: 700 14px var(--display); color: var(--ticket); }
+.sticker .grp { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .06em; }
+.g-dc .badge { background: #2456a8; } .g-marvel .badge { background: #c62f2f; } .g-milo .badge { background: #e08a1e; } .g-mc .badge { background: #4c9a2a; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.tabs button { font: 600 15px var(--body); border-radius: 999px; padding: 6px 14px; border: 2px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--ink); color: var(--card); border-color: var(--ink); }
+.mine { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.mine span { border-radius: 999px; padding: 6px 12px; font: 600 14px var(--body); background: var(--line); }
+.mine span.pending { background: var(--butter); color: #1f2a44; }
+.sticker .pic { width: 84px; height: 84px; border-radius: 14px; object-fit: cover; }
+.sticker.t3 .pic { width: 104px; height: 104px; } .sticker.t1 .pic { width: 72px; height: 72px; }
+.bar .thumb { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; vertical-align: middle; }
+.scores { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; width: 100%; max-width: 560px; }
+.scores div { background: var(--paper); border: 2px solid var(--line); border-radius: 14px; padding: 8px 6px; display: grid; gap: 2px; }
+.scores b { font: 700 24px var(--display); font-variant-numeric: tabular-nums; }
+.scores span { font-size: 12px; color: var(--ink-soft); }
+.record { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; font: 600 15px var(--body); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.topline { display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 10px; flex-wrap: wrap; }
+.topline button { font: 600 15px var(--body); background: transparent; border: 2px solid var(--line); border-radius: 999px; padding: 6px 14px; color: var(--ink); cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .timerbar i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <details class="bar" id="parent">
+    <summary>Parent panel (Patrick)</summary>
+    <p>Rules: 3 math probes per session, 1 minute each, 80% right earns a ticket. Each ticket earned also earns one tic-tac-toe game. One chess lesson per session. Videos cost <span id="pVid"></span> tickets for <span id="pMin"></span> minutes. Tickets stay in the bank until spent on videos or stickers.</p>
+    <div class="row" id="jump">
+      <button data-go="home" aria-pressed="true">Start</button>
+      <button data-go="probe">Math probe</button>
+      <button data-go="ttt">Tic-tac-toe</button>
+      <button data-go="chess">Chess</button>
+      <button data-go="spend">Spend</button>
+      <button data-go="store">Sticker store</button>
+      <button data-go="watching">Watching</button>
+      <button data-go="timeup">Time's up</button>
+    </div>
+    <div class="row">
+      <span>Bank: <b id="pBank">0</b> tickets</span>
+      <button id="bankMinus" aria-label="Remove one ticket">−1</button>
+      <button id="bankPlus" aria-label="Add one ticket">+1</button>
+      <button id="fast">Fast-forward timers ×20</button>
+      <button id="mute" aria-pressed="false">Sound on</button>
+      <button id="reset">Reset everything</button>
+    </div>
+    <h4>Stickers Cooper bought (hand him the real one, then tap Given)</h4>
+    <div id="claims"><p>None yet.</p></div>
+    <h4>Store prices and pictures</h4>
+    <p>Tap <b>Add picture</b> next to a sticker and pick a photo of the real sticker (or a screenshot of the Amazon listing). Pictures are saved on this device only, so add them on the iPad Cooper uses.</p>
+    <table id="priceTable"></table>
+    <input type="file" id="picFile" accept="image/*" hidden><input type="hidden" id="picFor">
+    <p id="picNote"></p>
+    <div class="row">
+      <input id="newName" class="wide" placeholder="New sticker name" aria-label="New sticker name">
+      <select id="newGroup" aria-label="Group"><option value="dc">DC</option><option value="marvel">Marvel</option><option value="milo">Milo</option><option value="mc">Minecraft</option></select>
+      <input id="newCost" type="number" min="1" value="3" aria-label="Cost in tickets">
+      <button id="addSticker">Add sticker</button>
+    </div>
+    <h4>Scores</h4>
+    <p>Chess lessons passed: <b id="pLessons">0</b> (<span id="pLessonsTotal"></span> different lessons, then they repeat; each pass pays <span id="pChess"></span> tickets). Tic-tac-toe: <b id="pTTT">0-0-0</b> (wins-ties-losses), level <b id="pLevel">1</b> of 10 (levels 1–5 are easy wins; it gets grown-up around 9–10).</p>
+  </details>
+
+  <main class="screen" id="screen" aria-live="polite"></main>
+</div>
+
+<script>
+const RULES = { probesNeeded: 3, passPct: 80, minAnswered: 8, probeSecs: 60, rewardMins: 30, videoCost: 3, chessTickets: 2 };
+const DEFAULT_STORE = [
+  { id: "flash", name: "The Flash", group: "dc", tier: 3, cost: 8 },
+  { id: "batman", name: "Batman", group: "dc", tier: 2, cost: 5 },
+  { id: "superman", name: "Superman", group: "dc", tier: 2, cost: 5 },
+  { id: "ww", name: "Wonder Woman", group: "dc", tier: 1, cost: 3 },
+  { id: "ironman", name: "Iron Man", group: "marvel", tier: 3, cost: 8 },
+  { id: "spidey", name: "Spider-Man", group: "marvel", tier: 2, cost: 5 },
+  { id: "hulk", name: "Hulk", group: "marvel", tier: 1, cost: 3 },
+  { id: "cap", name: "Captain America", group: "marvel", tier: 1, cost: 3 },
+  { id: "milo1", name: "Milo", group: "milo", tier: 2, cost: 5 },
+  { id: "milo2", name: "Milo friends", group: "milo", tier: 1, cost: 3 },
+  { id: "creeper", name: "Creeper", group: "mc", tier: 2, cost: 5 },
+  { id: "steve", name: "Steve", group: "mc", tier: 1, cost: 3 },
+  { id: "pick", name: "Diamond Pickaxe", group: "mc", tier: 1, cost: 3 },
+  { id: "ender", name: "Enderman", group: "mc", tier: 2, cost: 5 },
+];
+const GROUPS = { dc: "DC", marvel: "Marvel", milo: "Milo", mc: "Minecraft" };
+
+/* ---- Chess lessons (first-grade level, one tap each) ---- */
+const FILES = "abcdefgh";
+const sq = (f, r) => FILES[f] + (r + 1);
+const dark = (f, r) => (f + r) % 2 === 0;
+function ray(f, r, df, dr) { const out = []; let x = f + df, y = r + dr; while (x >= 0 && x < 8 && y >= 0 && y < 8) { out.push(sq(x, y)); x += df; y += dr; } return out; }
+function around(f, r) { const out = []; for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) { if (!dx && !dy) continue; const x = f + dx, y = r + dy; if (x >= 0 && x < 8 && y >= 0 && y < 8) out.push(sq(x, y)); } return out; }
+function knight(f, r) { const out = []; [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]].forEach(([dx, dy]) => { const x = f + dx, y = r + dy; if (x >= 0 && x < 8 && y >= 0 && y < 8) out.push(sq(x, y)); }); return out; }
+const allDark = []; for (let f = 0; f < 8; f++) for (let r = 0; r < 8; r++) if (dark(f, r)) allDark.push(sq(f, r));
+const LESSONS = [
+  { title: "The chess board", say: "A chess board has 64 squares. Some are light and some are dark. Tap any dark square.",
+    pieces: {}, answers: allDark, done: "That's a dark square. The board has 32 light squares and 32 dark squares." },
+  { title: "The king", say: "This is the king. He is the most important piece. He moves one square in any direction. Tap a square the king can move to.",
+    pieces: { e4: "♔" }, answers: around(4, 3), done: "The king can step one square any way he likes." },
+  { title: "The rook", say: "This is the rook. It looks like a castle. It slides in straight lines, up, down, or sideways. Tap a square the rook can slide to.",
+    pieces: { a1: "♖" }, answers: [...ray(0,0,1,0), ...ray(0,0,0,1)], done: "The rook slides as far as it wants in a straight line." },
+  { title: "The bishop", say: "This is the bishop. It slides on the diagonals, like an X. Tap a square the bishop can slide to.",
+    pieces: { d4: "♗" }, answers: [...ray(3,3,1,1), ...ray(3,3,-1,-1), ...ray(3,3,1,-1), ...ray(3,3,-1,1)], done: "The bishop slides diagonally. It always stays on the same color square." },
+  { title: "The queen", say: "This is the queen. She is the strongest piece. She can slide like a rook AND like a bishop. Tap a square the queen can slide to.",
+    pieces: { d4: "♕" }, answers: [...ray(3,3,1,0), ...ray(3,3,-1,0), ...ray(3,3,0,1), ...ray(3,3,0,-1), ...ray(3,3,1,1), ...ray(3,3,-1,-1), ...ray(3,3,1,-1), ...ray(3,3,-1,1)], done: "The queen slides any direction. Straight or diagonal." },
+  { title: "The knight", say: "This is the knight. It looks like a horse. It jumps in an L shape: two squares one way, then one square sideways. Tap a square the knight can jump to.",
+    pieces: { d4: "♘" }, answers: knight(3, 3), done: "The knight jumps in an L. It is the only piece that can jump over others." },
+  { title: "The pawn", say: "This is a pawn. Pawns are the little ones. A pawn walks forward one square. Tap the square this pawn walks to.",
+    pieces: { e2: "♙" }, answers: ["e3", "e4"], done: "The pawn walks forward. On its very first move it may go two squares." },
+  { title: "Find the king", say: "All the pieces are on the board. Can you find the king? Tap the king.",
+    pieces: { e1: "♔", d1: "♕", a1: "♖", h1: "♖", c1: "♗", f1: "♗", b1: "♘", g1: "♘", e2: "♙", d2: "♙" }, answers: ["e1"], done: "That's the king. He has a cross on top of his crown." },
+  { title: "Find the queen", say: "Now find the queen. She is right next to the king. Tap the queen.",
+    pieces: { e1: "♔", d1: "♕", a1: "♖", h1: "♖", c1: "♗", f1: "♗", b1: "♘", g1: "♘" }, answers: ["d1"], done: "That's the queen. Her crown has little points." },
+  { title: "Capture!", say: "The rook can slide onto the black pawn and capture it. Tap the black pawn.",
+    pieces: { a4: "♖", f4: "♟" }, answers: ["f4"], done: "The rook captures the pawn by sliding onto its square and taking its place." },
+];
+
+/* ---- State ---- */
+const KEY = "cooper-tickets-v2";
+function fresh() { return { view: "home", bank: 0, earned: 0, session: 0, games: 0, gamesLeft: 0, lessonsDone: 0, lastProbe: null, left: 0, speed: 1, muted: false, store: DEFAULT_STORE.map(s => ({ ...s })), owned: [], tttStats: { w: 0, t: 0, l: 0, level: 1 } }; }
+let S = fresh();
+try { const raw = localStorage.getItem(KEY); if (raw) { const saved = JSON.parse(raw); S = { ...fresh(), ...saved, view: "home", speed: 1, left: saved.left || 0 }; if (!Array.isArray(S.store) || !S.store.length) S.store = DEFAULT_STORE.map(s => ({ ...s })); if (!S.tttStats) S.tttStats = { w: 0, t: 0, l: 0, level: 1 }; } } catch (e) {}
+let PICS = {}; // sticker pictures live in their own key so a bad photo can't wipe the scores
+try { PICS = JSON.parse(localStorage.getItem(KEY + "-pics") || "{}") || {}; } catch (e) {}
+function savePics() { try { localStorage.setItem(KEY + "-pics", JSON.stringify(PICS)); return true; } catch (e) { return false; } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} parentPanel(); }
+let probe = null, tick = null;
+const $ = (s) => document.querySelector(s);
+const scr = $("#screen");
+
+/* ---- Speech ---- */
+function speak(text) {
+  if (S.muted || !("speechSynthesis" in window)) return;
+  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 0.9; speechSynthesis.speak(u); } catch (e) {}
+}
+
+function fmt(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return m + ":" + String(s).padStart(2, "0"); }
+function bankHTML() { return '<div class="bank">🎟 ' + S.bank + ' <small>tickets in the bank</small></div>'; }
+function scoresHTML() {
+  const t = S.tttStats;
+  return '<div class="scores" aria-label="Cooper\'s scores">' +
+    '<div><b>' + t.w + '</b><span>tic-tac-toe wins</span></div>' +
+    '<div><b>' + t.t + '</b><span>ties</span></div>' +
+    '<div><b>' + t.l + '</b><span>losses</span></div>' +
+    '<div><b>' + S.lessonsDone + '</b><span>chess lessons</span></div>' +
+    '<div><b>' + S.earned + '</b><span>tickets earned ever</span></div></div>';
+}
+function ticketsHTML(n) {
+  let h = '<div class="tickets" aria-label="' + n + ' of ' + RULES.probesNeeded + ' tickets this session">';
+  for (let i = 0; i < RULES.probesNeeded; i++) h += '<div class="tk' + (i < n ? " on" : "") + '">' + (i < n ? "TICKET" : (i + 1)) + "</div>";
+  return h + "</div>";
+}
+function newProblem() {
+  if (Math.random() < 0.65) { const a = 1 + Math.floor(Math.random() * 10), b = Math.floor(Math.random() * 10); return { q: a + " + " + b, a: a + b }; }
+  const a = 2 + Math.floor(Math.random() * 9), b = Math.floor(Math.random() * (a + 1)); return { q: a + " − " + b, a: a - b };
+}
+function stopTick() { if (tick) { clearInterval(tick); tick = null; } }
+function go(view) {
+  stopTick(); S.view = view;
+  document.querySelectorAll("#jump button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.go === view)));
+  if (view === "probe") return startProbe();
+  if (view === "ttt") { if (S.gamesLeft <= 0) S.gamesLeft = Math.max(1, S.session); return startTTT(); }
+  if (view === "chess") return startChess();
+  if (view === "watching" && S.left <= 0) S.left = 18 * 60 + 40;
+  if (view === "timeup") { S.left = 0; }
+  render(); save();
+  if (view === "watching") runClock();
+}
+function render() {
+  const v = S.view;
+  if (v === "home") {
+    scr.innerHTML = '<h1>Hi Cooper!</h1>' + bankHTML() + ticketsHTML(S.session) +
+      '<p class="sub">Each math probe is 1 minute. Get ' + RULES.passPct + '% right to earn a ticket. A chess lesson earns ' + RULES.chessTickets + ' tickets. Tickets buy videos and stickers.</p>' +
+      '<div class="choices"><button class="big" id="start">Start math probe ' + (Math.min(S.session, RULES.probesNeeded - 1) + 1) + '</button>' +
+      (S.bank > 0 ? '<button class="big quiet" id="spendNow">Spend my tickets</button>' : "") + '</div>' + scoresHTML();
+    $("#start").onclick = () => go("probe");
+    const sp = $("#spendNow"); if (sp) sp.onclick = () => go("spend");
+  } else if (v === "result") {
+    const r = S.lastProbe, won = r.pass, last = S.session >= RULES.probesNeeded;
+    scr.innerHTML = '<div class="stamp' + (won ? "" : " miss") + '">' + (won ? "Ticket earned!" : "So close!") + '</div>' +
+      '<h2>' + r.right + ' right out of ' + r.done + '</h2>' + ticketsHTML(S.session) + bankHTML() +
+      '<p class="sub">' + (won ? (last ? "That's all your probes for today!" : "Only " + (RULES.probesNeeded - S.session) + " more to go.")
+        : (r.done < RULES.minAnswered ? "Try to answer at least " + RULES.minAnswered + " problems." : "You need " + RULES.passPct + "% right. You can do it!")) + '</p>' +
+      (last ? '<button class="big alt" id="next">Play tic-tac-toe</button>' : '<button class="big" id="next">' + (won ? "Next probe" : "Try again") + '</button>');
+    $("#next").onclick = () => { if (last) { S.gamesLeft = S.session_earned || 0; go(S.gamesLeft > 0 ? "ttt" : "chess"); } else go("probe"); };
+  } else if (v === "spend") {
+    const canVid = S.bank >= RULES.videoCost;
+    scr.innerHTML = '<h2>What do you want to do?</h2>' + bankHTML() +
+      '<div class="choices">' +
+      '<button class="big sky" id="vid"' + (canVid ? "" : " disabled") + '>Watch videos<br><small>' + RULES.videoCost + ' tickets · ' + RULES.rewardMins + ' minutes</small></button>' +
+      '<button class="big" id="shop">Sticker store</button>' +
+      '<button class="big quiet" id="keep">Save my tickets</button></div>' +
+      (canVid ? "" : '<p class="note">You need ' + RULES.videoCost + ' tickets for videos. You have ' + S.bank + '. Do more math probes to earn more!</p>');
+    $("#vid").onclick = () => { if (S.bank < RULES.videoCost) return; S.bank -= RULES.videoCost; S.left = RULES.rewardMins * 60; S.session = 0; go("earned"); };
+    $("#shop").onclick = () => go("store");
+    $("#keep").onclick = () => { S.session = 0; go("home"); };
+  } else if (v === "earned") {
+    scr.innerHTML = '<div class="stamp">Videos unlocked</div><div class="clock">' + fmt(S.left) + '</div>' +
+      '<p class="sub">Great job, Cooper! You have ' + RULES.rewardMins + ' minutes of YouTube Kids. The clock starts now.</p>' +
+      '<button class="big alt" id="watch">Go watch</button><p class="note">On the iPad, this button opens YouTube Kids.</p>';
+    $("#watch").onclick = () => go("watching");
+  } else if (v === "watching") {
+    scr.innerHTML = '<h2>Video time left</h2><div class="clock" id="clock">' + fmt(S.left) + '</div>' +
+      '<p class="sub" id="warn">Enjoy your videos!</p><p class="note">Cooper sees this if he opens YouTube Kids while he still has time. It gets a 5-minute warning.</p>';
+  } else if (v === "timeup") {
+    scr.innerHTML = '<h1>Video time is over</h1>' + bankHTML() +
+      '<p class="sub">Want more videos? Earn more tickets with math probes.</p>' +
+      '<button class="big" id="start">Start math probe 1</button>';
+    $("#start").onclick = () => { S.session = 0; go("probe"); };
+  } else if (v === "store") renderStore();
+}
+function runClock() {
+  tick = setInterval(() => {
+    S.left = Math.max(0, S.left - S.speed);
+    const c = $("#clock"); if (c) c.textContent = fmt(S.left);
+    const w = $("#warn"); if (w && S.left <= 300 && S.left > 0) w.textContent = "5 minutes left. Find a good stopping place.";
+    if (S.left <= 0) go("timeup");
+  }, 1000);
+}
+
+/* ---- Math probe ---- */
+function startProbe() {
+  if (S.session >= RULES.probesNeeded) S.session = 0;
+  if (S.session === 0) S.session_earned = 0;
+  probe = { left: RULES.probeSecs, right: 0, done: 0, cur: newProblem(), typed: "" };
+  scr.innerHTML = '<div class="meta"><span id="pnum">Probe ' + (S.session + 1) + ' of ' + RULES.probesNeeded + '</span><span id="score">0 right</span></div>' +
+    '<div class="timerbar" aria-hidden="true"><i id="tb" style="width:100%"></i></div>' +
+    '<div class="problem"><span id="q"></span> = <span class="answer" id="ans">&nbsp;</span></div>' +
+    '<div class="pad" id="pad"></div>';
+  const pad = $("#pad");
+  ["1","2","3","4","5","6","7","8","9","⌫","0","Go"].forEach(k => {
+    const b = document.createElement("button"); b.textContent = k; b.id = "k" + (k === "⌫" ? "del" : k); if (k === "Go") b.className = "go";
+    b.setAttribute("aria-label", k === "⌫" ? "Erase" : k === "Go" ? "Check answer" : k);
+    b.onclick = () => key(k); pad.appendChild(b);
+  });
+  showQ();
+  tick = setInterval(() => {
+    probe.left = Math.max(0, probe.left - S.speed);
+    $("#tb").style.width = (100 * probe.left / RULES.probeSecs) + "%";
+    if (probe.left <= 0) finishProbe();
+  }, 1000);
+}
+function showQ() { $("#q").textContent = probe.cur.q; $("#ans").innerHTML = probe.typed || "&nbsp;"; $("#score").textContent = probe.right + " right"; }
+function key(k) {
+  if (k === "⌫") probe.typed = probe.typed.slice(0, -1);
+  else if (k === "Go") { if (!probe.typed) return; probe.done++; if (Number(probe.typed) === probe.cur.a) probe.right++; probe.cur = newProblem(); probe.typed = ""; }
+  else if (probe.typed.length < 2) probe.typed += k;
+  showQ();
+}
+function finishProbe() {
+  stopTick();
+  const pct = probe.done ? Math.round(100 * probe.right / probe.done) : 0;
+  const pass = probe.done >= RULES.minAnswered && pct >= RULES.passPct;
+  S.session++;
+  if (pass) { S.bank++; S.earned++; S.session_earned = (S.session_earned || 0) + 1; }
+  S.lastProbe = { right: probe.right, done: probe.done, pass };
+  S.view = "result"; render(); save();
+}
+
+/* ---- Tic-tac-toe: Cooper is X, the booth is O ---- */
+let ttt = null;
+const LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+function winner(b) { for (const L of LINES) if (b[L[0]] && b[L[0]] === b[L[1]] && b[L[0]] === b[L[2]]) return L; return null; }
+function startTTT() {
+  ttt = { b: Array(9).fill(""), over: false, line: null };
+  const t = S.tttStats;
+  scr.innerHTML = '<div class="stamp">Tic-tac-toe · level ' + t.level + '</div><h2 id="tttMsg">Your turn, Cooper. You are X.</h2>' +
+    '<p class="sub">Games left: <b id="tttLeft">' + S.gamesLeft + '</b>. One game for each ticket you earned.</p>' +
+    '<div class="record" aria-label="Record"><span>🏆 ' + t.w + ' wins</span><span>🤝 ' + t.t + ' ties</span><span>😮 ' + t.l + ' losses</span></div>' +
+    '<div class="ttt" id="ttt" aria-label="Tic-tac-toe board"></div><div class="choices" id="tttDone"></div>';
+  const g = $("#ttt");
+  for (let i = 0; i < 9; i++) { const b = document.createElement("button"); b.setAttribute("aria-label", "Square " + (i + 1)); b.onclick = () => tttMove(i); g.appendChild(b); }
+  speak("Tic tac toe. Your turn, Cooper. You are X.");
+}
+function tttDraw() {
+  document.querySelectorAll("#ttt button").forEach((b, i) => { b.textContent = ttt.b[i]; b.className = ttt.b[i] === "X" ? "x" : ttt.b[i] === "O" ? "o" : ""; b.disabled = ttt.over || !!ttt.b[i]; if (ttt.line && ttt.line.includes(i)) b.classList.add("win"); });
+}
+function tttMove(i) {
+  if (ttt.over || ttt.b[i]) return;
+  ttt.b[i] = "X"; tttDraw();
+  if (tttEnd()) return;
+  $("#tttMsg").textContent = "Thinking…";
+  setTimeout(() => { const j = tttPick(); ttt.b[j] = "O"; tttDraw(); if (!tttEnd()) $("#tttMsg").textContent = "Your turn, Cooper."; }, 500);
+}
+function tttPick() {
+  const b = ttt.b, free = b.map((v, i) => v ? -1 : i).filter(i => i >= 0);
+  const tryFor = (m) => { for (const i of free) { b[i] = m; const w = winner(b); b[i] = ""; if (w) return i; } return -1; };
+  // Difficulty 1–10. The curve is gentle at first (levels 1–5 still let Cooper win most games),
+  // then steepens; level 10 plays like a grown-up. Level goes up after a win, down after a loss.
+  const f = Math.pow((S.tttStats.level - 1) / 9, 1.6);
+  const pWin = 0.25 + 0.75 * f, pBlock = 0.05 + 0.95 * f, pSmart = f;
+  let i = tryFor("O"); if (i >= 0 && Math.random() < pWin) return i;
+  i = tryFor("X"); if (i >= 0 && Math.random() < pBlock) return i;
+  if (Math.random() < pSmart) {
+    if (!b[4]) return 4;
+    const corners = [0,2,6,8].filter(k => !b[k]); if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
+  }
+  return free[Math.floor(Math.random() * free.length)];
+}
+function tttEnd() {
+  const w = winner(ttt.b), full = ttt.b.every(Boolean);
+  if (!w && !full) return false;
+  ttt.over = true; ttt.line = w; tttDraw();
+  const t = S.tttStats, cooperWon = w && ttt.b[w[0]] === "X";
+  if (cooperWon) { t.w++; t.level = Math.min(10, t.level + 1); } else if (w) { t.l++; t.level = Math.max(1, t.level - 1); } else { t.t++; }
+  const msg = cooperWon ? "You win, Cooper!" + (t.level > 1 ? " The booth will try harder next time." : "") : w ? "The booth wins this one!" : "It's a tie!";
+  $("#tttMsg").textContent = msg; speak(msg);
+  S.gamesLeft = Math.max(0, S.gamesLeft - 1); $("#tttLeft").textContent = S.gamesLeft; save();
+  $("#tttDone").innerHTML = S.gamesLeft > 0 ? '<button class="big alt" id="again">Play again (' + S.gamesLeft + ' left)</button>' : '<button class="big alt" id="toChess">Next: chess lesson</button>';
+  const a = $("#again"); if (a) a.onclick = () => startTTT();
+  const c = $("#toChess"); if (c) c.onclick = () => go("chess");
+  return true;
+}
+
+/* ---- Chess lesson ---- */
+let lesson = null;
+function startChess() {
+  const idx = S.lessonsDone % LESSONS.length;
+  const L = LESSONS[idx];
+  lesson = { idx, L, misses: 0, solved: false };
+  scr.innerHTML = '<div class="stamp">Chess lesson ' + (idx + 1) + '</div><h2>' + L.title + '</h2>' +
+    '<p class="sub" id="chessSay">' + L.say + '</p>' +
+    '<div class="board" id="board" aria-label="Chess board"></div>' +
+    '<div class="lessonbar" aria-hidden="true">' + LESSONS.map((_, i) => '<i class="' + (i < (S.lessonsDone % LESSONS.length) ? "done" : "") + '"></i>').join("") + '</div>' +
+    '<div class="choices" id="chessDone"><button class="big quiet" id="sayAgain">🔊 Say it again</button></div>';
+  const bd = $("#board");
+  for (let r = 7; r >= 0; r--) for (let f = 0; f < 8; f++) {
+    const b = document.createElement("button"); const name = sq(f, r);
+    b.className = dark(f, r) ? "d" : "l"; b.dataset.sq = name; b.setAttribute("aria-label", name);
+    const p = L.pieces[name]; if (p) { b.textContent = p; if ("♔♕♖♗♘♙".includes(p)) b.classList.add("white"); }
+    b.onclick = () => chessTap(name); bd.appendChild(b);
+  }
+  $("#sayAgain").onclick = () => speak(L.say);
+  speak(L.say);
+}
+function chessTap(name) {
+  if (lesson.solved) return;
+  const b = document.querySelector('#board [data-sq="' + name + '"]');
+  if (lesson.L.answers.includes(name)) {
+    lesson.solved = true; b.classList.add("ok");
+    lesson.L.answers.forEach(s => document.querySelector('#board [data-sq="' + s + '"]').classList.add("pick"));
+    S.lessonsDone++; S.bank += RULES.chessTickets; S.earned += RULES.chessTickets; save();
+    const line = "You got it! " + lesson.L.done + " That's " + RULES.chessTickets + " tickets! Do you want another chess lesson, or go to your videos?";
+    document.querySelector(".stamp").textContent = "Chess lesson " + (lesson.idx + 1) + " · +" + RULES.chessTickets + " tickets";
+    $("#chessSay").textContent = line; speak(line);
+    $("#chessDone").innerHTML = '<button class="big alt" id="another">Another chess lesson</button><button class="big sky" id="toVideos">Go to videos</button>';
+    $("#another").onclick = () => go("chess");
+    $("#toVideos").onclick = () => go("spend");
+  } else {
+    lesson.misses++; b.classList.add("bad"); setTimeout(() => b.classList.remove("bad"), 600);
+    let line = "Not quite. Try again. " + (lesson.misses >= 2 ? "The right squares are glowing yellow now." : "");
+    if (lesson.misses >= 2) lesson.L.answers.forEach(s => document.querySelector('#board [data-sq="' + s + '"]').classList.add("pick"));
+    $("#chessSay").textContent = line; speak(line);
+  }
+}
+
+/* ---- Sticker store ---- */
+let tab = "all";
+function renderStore() {
+  const items = S.store.filter(s => tab === "all" || s.group === tab);
+  scr.innerHTML = '<div class="topline"><button id="back">← Back</button>' + bankHTML() + '</div><h2>Sticker store</h2>' +
+    '<p class="sub">Little stickers cost 3. Bigger stickers cost more. Save up for the big ones!</p>' +
+    '<div class="tabs" id="tabs"><button data-t="all">All</button>' + Object.entries(GROUPS).map(([k, n]) => '<button data-t="' + k + '">' + n + '</button>').join("") + '</div>' +
+    '<div class="shelf" id="shelf"></div>' +
+    (S.owned.length ? '<h2>My stickers</h2><div class="mine">' + S.owned.map(o => '<span class="' + (o.given ? "" : "pending") + '">' + esc(o.name) + (o.given ? "" : " · ask Dad") + '</span>').join("") + '</div>' : "");
+  $("#back").onclick = () => go("spend");
+  document.querySelectorAll("#tabs button").forEach(b => { b.setAttribute("aria-pressed", String(b.dataset.t === tab)); b.onclick = () => { tab = b.dataset.t; renderStore(); }; });
+  const shelf = $("#shelf");
+  items.forEach(s => {
+    const b = document.createElement("button"); b.className = "sticker t" + s.tier + " g-" + s.group; b.disabled = S.bank < s.cost;
+    const pic = PICS[s.id];
+    b.innerHTML = (pic ? '<img class="pic" src="' + pic + '" alt="">' : '<div class="badge">' + esc(s.name[0]) + '</div>') + '<b>' + esc(s.name) + '</b><span class="grp">' + GROUPS[s.group] + '</span><span class="cost">' + s.cost + ' tickets</span>';
+    b.onclick = () => buy(s); shelf.appendChild(b);
+  });
+}
+function buy(s) {
+  if (S.bank < s.cost) return;
+  S.bank -= s.cost; S.owned.push({ id: s.id, name: s.name, given: false, when: Date.now() }); save();
+  const line = "You bought the " + s.name + " sticker! Ask Dad for it.";
+  speak(line); renderStore();
+  scr.insertAdjacentHTML("afterbegin", '<div class="stamp">' + esc(line) + '</div>');
+}
+function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+/* ---- Parent panel ---- */
+function parentPanel() {
+  $("#pBank").textContent = S.bank; $("#pVid").textContent = RULES.videoCost; $("#pMin").textContent = RULES.rewardMins;
+  $("#pLessons").textContent = S.lessonsDone; $("#pLessonsTotal").textContent = LESSONS.length; $("#pChess").textContent = RULES.chessTickets;
+  $("#pTTT").textContent = S.tttStats.w + "-" + S.tttStats.t + "-" + S.tttStats.l; $("#pLevel").textContent = S.tttStats.level;
+  const pending = S.owned.filter(o => !o.given);
+  $("#claims").innerHTML = pending.length ? pending.map((o, i) => '<div class="row"><span>' + esc(o.name) + '</span><button data-give="' + S.owned.indexOf(o) + '">Given</button></div>').join("") : "<p>None waiting.</p>";
+  document.querySelectorAll("#claims [data-give]").forEach(b => b.onclick = () => { S.owned[Number(b.dataset.give)].given = true; save(); if (S.view === "store") renderStore(); });
+  $("#priceTable").innerHTML = S.store.map((s, i) => '<tr><td>' + (PICS[s.id] ? '<img class="thumb" src="' + PICS[s.id] + '" alt=""> ' : "") + esc(s.name) + ' <small>(' + GROUPS[s.group] + ')</small></td><td><input type="number" min="1" value="' + s.cost + '" data-cost="' + i + '" aria-label="Cost for ' + esc(s.name) + '"> <button data-pic="' + s.id + '">' + (PICS[s.id] ? "Change picture" : "Add picture") + '</button> <button data-del="' + i + '" aria-label="Remove ' + esc(s.name) + '">✕</button></td></tr>').join("");
+  document.querySelectorAll("#priceTable [data-pic]").forEach(b => b.onclick = () => { $("#picFor").value = b.dataset.pic; $("#picFile").click(); });
+  document.querySelectorAll("#priceTable [data-cost]").forEach(inp => inp.onchange = () => { const s = S.store[Number(inp.dataset.cost)]; s.cost = Math.max(1, Number(inp.value) || 1); s.tier = s.cost >= 8 ? 3 : s.cost >= 5 ? 2 : 1; save(); if (S.view === "store") renderStore(); });
+  document.querySelectorAll("#priceTable [data-del]").forEach(b => b.onclick = () => { S.store.splice(Number(b.dataset.del), 1); save(); if (S.view === "store") renderStore(); });
+}
+$("#addSticker").onclick = () => {
+  const name = $("#newName").value.trim(); if (!name) return;
+  const cost = Math.max(1, Number($("#newCost").value) || 3);
+  S.store.push({ id: "s" + Date.now(), name, group: $("#newGroup").value, cost, tier: cost >= 8 ? 3 : cost >= 5 ? 2 : 1 });
+  $("#newName").value = ""; save(); if (S.view === "store") renderStore();
+};
+$("#picFile").onchange = () => {
+  const file = $("#picFile").files[0], id = $("#picFor").value; if (!file || !id) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      // Shrink to a 200px square so a phone photo doesn't fill up the iPad's storage.
+      const c = document.createElement("canvas"), size = 200, m = Math.min(img.width, img.height); c.width = c.height = size;
+      c.getContext("2d").drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, size, size);
+      PICS[id] = c.toDataURL("image/jpeg", 0.82);
+      if (!savePics()) $("#picNote").textContent = "That picture couldn't be saved on this device. Try a smaller one.";
+      else $("#picNote").textContent = "Picture saved. It shows in the store on this device.";
+      parentPanel(); if (S.view === "store") renderStore();
+    };
+    img.src = rd.result;
+  };
+  rd.readAsDataURL(file); $("#picFile").value = "";
+};
+$("#bankPlus").onclick = () => { S.bank++; save(); if (["home","spend","store","result","timeup"].includes(S.view)) render(); };
+$("#bankMinus").onclick = () => { S.bank = Math.max(0, S.bank - 1); save(); if (["home","spend","store","result","timeup"].includes(S.view)) render(); };
+$("#jump").onclick = (e) => { const b = e.target.closest("button[data-go]"); if (b) go(b.dataset.go); };
+$("#fast").onclick = (e) => { S.speed = S.speed === 1 ? 20 : 1; e.target.setAttribute("aria-pressed", String(S.speed > 1)); };
+$("#mute").onclick = (e) => { S.muted = !S.muted; e.target.setAttribute("aria-pressed", String(S.muted)); e.target.textContent = S.muted ? "Sound off" : "Sound on"; if (S.muted) try { speechSynthesis.cancel(); } catch (x) {} save(); };
+$("#reset").onclick = () => { S = fresh(); $("#fast").setAttribute("aria-pressed", "false"); $("#mute").setAttribute("aria-pressed", "false"); $("#mute").textContent = "Sound on"; save(); go("home"); };
+$("#mute").setAttribute("aria-pressed", String(S.muted)); $("#mute").textContent = S.muted ? "Sound off" : "Sound on";
+parentPanel(); render();
+</script>

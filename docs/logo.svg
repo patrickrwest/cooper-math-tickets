@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 320" width="640" height="320" role="img" aria-label="Cooper's Math Tickets">
+  <defs>
+    <mask id="notch">
+      <rect width="640" height="320" fill="#fff"/>
+      <circle cx="60" cy="160" r="26" fill="#000"/>
+      <circle cx="580" cy="160" r="26" fill="#000"/>
+    </mask>
+  </defs>
+  <!-- ticket body -->
+  <g mask="url(#notch)">
+    <rect x="60" y="60" width="520" height="200" rx="22" fill="#d94f3d"/>
+    <rect x="60" y="60" width="520" height="200" rx="22" fill="none" stroke="#fff8ef" stroke-width="6" stroke-dasharray="14 10"/>
+  </g>
+  <!-- perforation line -->
+  <line x1="420" y1="78" x2="420" y2="242" stroke="#fff8ef" stroke-width="5" stroke-dasharray="10 12" stroke-linecap="round"/>
+  <!-- math on the left -->
+  <text x="100" y="150" font-family="Fredoka, 'Arial Rounded MT Bold', Arial, sans-serif" font-weight="700" font-size="54" fill="#fff8ef">3 + 4</text>
+  <text x="100" y="222" font-family="Fredoka, 'Arial Rounded MT Bold', Arial, sans-serif" font-weight="700" font-size="54" fill="#f5c84b">= 7</text>
+  <text x="290" y="130" font-family="Atkinson Hyperlegible, Arial, sans-serif" font-weight="700" font-size="17" letter-spacing="2.5" fill="#fff8ef" opacity=".9">COOPER'S</text>
+  <text x="290" y="162" font-family="Atkinson Hyperlegible, Arial, sans-serif" font-weight="700" font-size="17" letter-spacing="2.5" fill="#fff8ef" opacity=".9">MATH</text>
+  <text x="290" y="194" font-family="Atkinson Hyperlegible, Arial, sans-serif" font-weight="700" font-size="17" letter-spacing="2.5" fill="#fff8ef" opacity=".9">TICKETS</text>
+  <!-- stub with a star -->
+  <polygon points="500,110 513,145 550,145 520,167 531,202 500,180 469,202 480,167 450,145 487,145" fill="#f5c84b"/>
+  <text x="500" y="238" text-anchor="middle" font-family="Fredoka, 'Arial Rounded MT Bold', Arial, sans-serif" font-weight="700" font-size="22" fill="#fff8ef">ADMIT 1</text>
+</svg>
