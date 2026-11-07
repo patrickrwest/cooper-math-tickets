@@ -421,7 +421,7 @@ function runClock() {
 /* ---- Math probe ---- */
 function startProbe() {
   if (S.session >= RULES.probesNeeded) S.session = 0;
-  if (S.session === 0) { S.session_earned = 0; S.sessBonus = 0; S.sessRights = []; S.sessPass = []; S.sessWrong = []; S.superReady = false; }
+  if (S.session === 0 && !S.sessStarted) { S.session_earned = 0; S.sessBonus = 0; S.sessRights = []; S.sessPass = []; S.sessWrong = []; S.superReady = false; S.sessStarted = true; }
   probe = { left: RULES.probeSecs, right: 0, done: 0, cur: newProblem(), typed: "", wrong: [] };
   scr.innerHTML = '<div class="meta"><span id="pnum">Probe ' + (S.session + 1) + ' of ' + RULES.probesNeeded + '</span><span id="score">0 right</span></div>' +
     '<div class="timerbar" aria-hidden="true"><i id="tb" style="width:100%"></i></div>' +
@@ -512,7 +512,7 @@ function finishProbe() {
   const record = probe.right > 0 && probe.right > oldBest;
   if (!pass) {
     // Failed: the slot stays open and he redoes this probe. Bonus is untouched.
-    S.lastProbe = { right: probe.right, done: probe.done, pass: false, bonusNote: "", doubled: false, nextGoal: goalFor(probe.right), record };
+    S.lastProbe = { right: probe.right, done: probe.done, pass: false, bonusNote: "", doubled: false, nextGoal: goalFor(probe.right), record: false };
     S.view = "result"; render(); save(); return;
   }
   S.session++;
@@ -540,7 +540,7 @@ function finishProbe() {
   // Goal for the next probe: match this probe's count to double the bonus.
   let nextGoal = null;
   if (n < RULES.probesNeeded) nextGoal = goalFor(probe.right);
-  if (n === RULES.probesNeeded) { S.bonusSecs = Math.min(RULES.bonusMaxSecs, S.bonusSecs + (S.sessBonus || 0)); S.sessBonus = 0; S.sessRights = []; S.superReady = true; }
+  if (n === RULES.probesNeeded) { S.bonusSecs = Math.min(RULES.bonusMaxSecs, S.bonusSecs + (S.sessBonus || 0)); S.sessBonus = 0; S.sessRights = []; S.superReady = true; S.sessStarted = false; }
   S.lastProbe = { right: probe.right, done: probe.done, pass, bonusNote, doubled, nextGoal, record };
   S.view = "result"; render(); save();
 }
