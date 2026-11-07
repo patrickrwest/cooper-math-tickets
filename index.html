@@ -84,6 +84,7 @@ h2 { font-size: clamp(22px, 4.5vw, 30px); font-weight: 600; }
 .tk { width: 92px; height: 54px; border-radius: 8px; display: grid; place-items: center; font: 700 15px var(--display); letter-spacing: .06em;
   border: 2px dashed var(--line); color: var(--ink-soft); position: relative; }
 .tk.on { background: var(--ticket); color: var(--ticket-ink); border: 2px solid var(--ticket); }
+.tk.missed { border-style: solid; color: var(--ticket); font-size: 22px; }
 .tk::before, .tk::after { content: ""; position: absolute; top: 50%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%; background: var(--card); }
 .tk::before { left: -8px; } .tk::after { right: -8px; }
 .clock { font: 700 clamp(56px, 14vw, 88px)/1 var(--display); font-variant-numeric: tabular-nums; }
@@ -317,9 +318,10 @@ function scoresHTML() {
     '<div><b>' + S.lessonsDone + '</b><span>chess lessons</span></div>' +
     '<div><b>' + S.earned + '</b><span>tickets earned ever</span></div></div>';
 }
-function ticketsHTML(n) {
-  let h = '<div class="tickets" aria-label="' + n + ' of ' + RULES.probesNeeded + ' tickets this session">';
-  for (let i = 0; i < RULES.probesNeeded; i++) h += '<div class="tk' + (i < n ? " on" : "") + '">' + (i < n ? "TICKET" : (i + 1)) + "</div>";
+function ticketsHTML() {
+  const res = S.sessPass || [];
+  let h = '<div class="tickets" aria-label="' + res.filter(Boolean).length + ' tickets earned this session">';
+  for (let i = 0; i < RULES.probesNeeded; i++) h += '<div class="tk' + (res[i] === true ? " on" : res[i] === false ? " missed" : "") + '">' + (res[i] === true ? "TICKET" : res[i] === false ? "✗" : (i + 1)) + "</div>";
   return h + "</div>";
 }
 function newProblem() {
@@ -400,7 +402,7 @@ function runClock() {
 /* ---- Math probe ---- */
 function startProbe() {
   if (S.session >= RULES.probesNeeded) S.session = 0;
-  if (S.session === 0) { S.session_earned = 0; S.sessBonus = 0; S.sessRights = []; }
+  if (S.session === 0) { S.session_earned = 0; S.sessBonus = 0; S.sessRights = []; S.sessPass = []; }
   probe = { left: RULES.probeSecs, right: 0, done: 0, cur: newProblem(), typed: "" };
   scr.innerHTML = '<div class="meta"><span id="pnum">Probe ' + (S.session + 1) + ' of ' + RULES.probesNeeded + '</span><span id="score">0 right</span></div>' +
     '<div class="timerbar" aria-hidden="true"><i id="tb" style="width:100%"></i></div>' +
@@ -436,6 +438,8 @@ function finishProbe() {
   const pct = probe.done ? Math.round(100 * probe.right / probe.done) : 0;
   const pass = probe.done >= RULES.minAnswered && pct >= RULES.passPct;
   S.session++;
+  if (!Array.isArray(S.sessPass)) S.sessPass = [];
+  S.sessPass[S.session - 1] = pass;
   if (pass) { S.bank++; S.earned++; S.session_earned = (S.session_earned || 0) + 1; }
   // Bonus minutes: probe 1 earns 30 s per correct answer past 8; each later probe that matches or beats
   // the previous probe's count doubles the session bonus. Capped at bonusMaxSecs.
