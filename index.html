@@ -227,7 +227,7 @@ button:focus-visible { outline: 3px solid var(--butter); outline-offset: 3px; }
 <script>
 const RULES = { probesNeeded: 3, passPct: 80, minAnswered: 8, probeSecs: 60, rewardMins: 30, videoCost: 3, chessTickets: 2,
   bonusSecsPerExtra: 30, bonusMaxSecs: 15 * 60, videoMaxMins: 45, tttTradeSecs: 180, defaultPin: "2468",
-  superNeed: 8, superTickets: 3, superMax: 12, videoUrl: "https://www.youtube.com/" };
+  superNeed: 8, superTickets: 3, superMax: 12, videoUrl: "youtube://", videoWebUrl: "https://www.youtube.com/" };
 const DEFAULT_STORE = [
   { id: "flash", name: "The Flash", group: "dc", tier: 3, cost: 8 },
   { id: "batman", name: "Batman", group: "dc", tier: 2, cost: 5 },
@@ -403,12 +403,12 @@ function render() {
   } else if (v === "earned") {
     scr.innerHTML = '<div class="stamp">Videos unlocked</div><div class="clock">' + fmt(S.left) + '</div>' +
       '<p class="sub">Great job, Cooper! You have ' + Math.round(S.left / 60) + ' minutes of videos' + (S.left > RULES.rewardMins * 60 ? ' (' + RULES.rewardMins + ' + your bonus)' : "") + '. The clock starts when you tap Go watch.</p>' +
-      '<a class="big alt" id="watch" href="' + RULES.videoUrl + '" target="_blank" rel="noopener">▶ Go watch</a><p class="note">Opens YouTube. Come back here to see your time left.</p>';
+      '<a class="big alt" id="watch" href="' + RULES.videoUrl + '">▶ Go watch</a><p class="note">Opens the YouTube app. Come back here to see your time left. <a href="' + RULES.videoWebUrl + '" target="_blank" rel="noopener">Open in Safari instead</a></p>';
     $("#watch").onclick = () => { S.endAt = Date.now() + S.left * 1000; go("watching"); };
   } else if (v === "watching") {
     scr.innerHTML = '<h2>Video time left</h2><div class="clock" id="clock">' + fmt(S.left) + '</div>' +
       '<p class="sub" id="warn">Enjoy your videos!</p>' +
-      '<a class="big alt" href="' + RULES.videoUrl + '" target="_blank" rel="noopener">▶ Back to YouTube</a>' +
+      '<a class="big alt" href="' + RULES.videoUrl + '">▶ Back to YouTube</a>' +
       '<p class="note">The clock keeps running while you watch. It gives a 5-minute warning.</p>';
   } else if (v === "timeup") {
     scr.innerHTML = '<h1>Video time is over</h1>' + bankHTML() +
