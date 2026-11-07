@@ -59,6 +59,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--body); fo
 .records .empty { color: var(--ink-soft); font-size: 14px; }
 .records .rec { display: flex; justify-content: space-between; font-size: 14px; color: var(--ink-soft); }
 .records .rec b { font-size: 16px; }
+.records .party { font: 700 15px var(--display); background: var(--butter); color: #1f2a44; border: 0; border-radius: 999px; padding: 10px 14px; cursor: pointer; }
 @media (max-width: 759px) { .records ol { grid-template-columns: repeat(3, 1fr); } .records li { grid-template-columns: 1fr; text-align: center; gap: 2px; } }
 .bar { background: var(--bar); color: var(--bar-ink); border-radius: 14px; padding: 12px 14px; display: grid; gap: 10px; }
 .bar summary { font-family: var(--display); font-weight: 600; letter-spacing: .02em; cursor: pointer; }
@@ -303,7 +304,9 @@ function renderRecords() {
     '<div class="rec"><span>Tic-tac-toe</span><b>' + t.w + '-' + t.t + '-' + t.l + '</b></div>' +
     '<div class="rec"><span>Tic-tac-toe level</span><b>' + t.level + ' / 10</b></div>' +
     '<div class="rec"><span>Chess lessons</span><b>' + S.lessonsDone + '</b></div>' +
-    '<div class="rec"><span>Tickets ever</span><b>' + S.earned + '</b></div>';
+    '<div class="rec"><span>Tickets ever</span><b>' + S.earned + '</b></div>' +
+    '<button class="party" id="party" aria-label="Confetti">🎉 Confetti!</button>';
+  $("#party").onclick = () => { confetti(); speak("Hooray, Cooper!"); };
 }
 function scoresHTML() {
   const t = S.tttStats;
@@ -348,7 +351,7 @@ function render() {
     const r = S.lastProbe, won = r.pass, last = S.session >= RULES.probesNeeded;
     scr.innerHTML = (r.doubled ? '<div class="doubled">BONUS DOUBLED!</div>' : r.record ? '<div class="doubled">NEW RECORD!</div>' : '<div class="stamp' + (won ? "" : " miss") + '">' + (won ? "Ticket earned!" : "So close!") + '</div>') +
       '<h2>' + r.right + ' right out of ' + r.done + '</h2>' + (r.bonusNote ? '<div class="bonus">⏱ ' + r.bonusNote + '</div>' : "") +
-      (r.nextGoal ? '<div class="goal"><b>Next round:</b> get <span class="goalnum">' + r.nextGoal.x + '</span> or more right and your bonus doubles to <span class="goalnum">' + fmtMin(r.nextGoal.y) + '</span>!</div>' : "") +
+      (r.nextGoal ? '<div class="goal"><b>Next round:</b> get <span class="goalnum">' + r.nextGoal.x + '</span> or more right ' + (r.nextGoal.start ? 'to start a bonus: <span class="goalnum">' + fmtMin(r.nextGoal.y) + '</span> for every extra one!' : 'and your bonus doubles to <span class="goalnum">' + fmtMin(r.nextGoal.y) + '</span>!') + '</div>' : "") +
       ticketsHTML(S.session) + bankHTML() +
       '<p class="sub">' + (won ? (last ? "That's all your probes for today!" : "Only " + (RULES.probesNeeded - S.session) + " more to go.")
         : (r.done < RULES.minAnswered ? "Try to answer at least " + RULES.minAnswered + " problems." : "You need " + RULES.passPct + "% right. You can do it!")) + '</p>' +
@@ -356,7 +359,7 @@ function render() {
     $("#next").onclick = () => { if (last) { S.gamesLeft = S.session_earned || 0; go(S.gamesLeft > 0 ? "ttt" : "chess"); } else go("probe"); };
     if (r.record && !r.doubled) { confetti(); speak("New record! " + r.right + " right!"); }
     if (r.doubled) { confetti(); speak("Bonus doubled! " + (r.nextGoal ? "Get " + r.nextGoal.x + " right next round to double it again." : "")); }
-    else if (r.nextGoal) speak("Get " + r.nextGoal.x + " right next round and your bonus doubles.");
+    else if (r.nextGoal) speak(r.nextGoal.start ? "Get " + r.nextGoal.x + " right next round to start a bonus." : "Get " + r.nextGoal.x + " right next round and your bonus doubles.");
   } else if (v === "spend") {
     const canVid = S.bank >= RULES.videoCost;
     scr.innerHTML = '<h2>What do you want to do?</h2>' + bankHTML() +
@@ -446,11 +449,16 @@ function finishProbe() {
     bonusNote = "You matched probe " + (n - 1) + "! Bonus doubled to " + fmtMin(S.sessBonus) + (S.sessBonus >= RULES.bonusMaxSecs ? " (the max)" : "") + ".";
   } else if (before > 0) {
     bonusNote = "You keep your " + fmtMin(before) + " bonus.";
+  } else {
+    // No bonus yet this session: this probe can start one.
+    S.sessBonus = Math.max(0, probe.right - RULES.minAnswered) * RULES.bonusSecsPerExtra;
+    if (S.sessBonus) bonusNote = "Bonus started: " + fmtMin(S.sessBonus) + " for " + (probe.right - RULES.minAnswered) + " extra right!";
   }
   S.sessRights[n - 1] = probe.right;
   // Goal for the next probe: match this probe's count to double the bonus.
   let nextGoal = null;
-  if (n < RULES.probesNeeded && S.sessBonus > 0) nextGoal = { x: probe.right, y: Math.min(RULES.bonusMaxSecs, S.sessBonus * 2), now: S.sessBonus };
+  if (n < RULES.probesNeeded) nextGoal = S.sessBonus > 0 ? { x: probe.right, y: Math.min(RULES.bonusMaxSecs, S.sessBonus * 2), now: S.sessBonus }
+    : { start: true, x: RULES.minAnswered + 1, y: RULES.bonusSecsPerExtra };
   if (n === RULES.probesNeeded) { S.bonusSecs = Math.min(RULES.bonusMaxSecs, S.bonusSecs + (S.sessBonus || 0)); S.sessBonus = 0; S.sessRights = []; }
   S.lastProbe = { right: probe.right, done: probe.done, pass, bonusNote, doubled, nextGoal };
   // Top-3 records: most right answers in one probe.
