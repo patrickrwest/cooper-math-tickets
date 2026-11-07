@@ -170,10 +170,11 @@ button:focus-visible { outline: 3px solid var(--butter); outline-offset: 3px; }
     <div class="row"><input id="newPin" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="New PIN" aria-label="New PIN"><button id="setPin">Change PIN</button><span id="pinNote"></span></div>
     <h4>Bonus minutes</h4>
     <p>Probe 1: 30 s per correct answer past 8. Probes 2 and 3 double the bonus when he matches or beats the previous probe. Max 15 min. Bonus banked: <b id="pBonus">0</b> min. <button id="bonusMinus">−1 min</button> <button id="bonusPlus">+1 min</button></p>
-    <p>Rules: 3 math probes per session, 1 minute each, 80% right earns a ticket. Each ticket earned also earns one tic-tac-toe game. One chess lesson per session. Videos cost <span id="pVid"></span> tickets for <span id="pMin"></span> minutes. Tickets stay in the bank until spent on videos or stickers.</p>
+    <p>Rules: 3 math probes per session, 1 minute each, 80% right earns a ticket; a failed probe is redone. After probe 3, a Super Bonus round replays his wrong answers (padded from his most-missed problems to at least 8): 8 right pays 3 tickets. Videos never exceed <span id="pMax"></span> minutes; leftover bonus stays banked. Each ticket earned also earns one tic-tac-toe game. One chess lesson per session. Videos cost <span id="pVid"></span> tickets for <span id="pMin"></span> minutes. Tickets stay in the bank until spent on videos or stickers.</p>
     <div class="row" id="jump">
       <button data-go="home" aria-pressed="true">Start</button>
       <button data-go="probe">Math probe</button>
+      <button data-go="super">Super bonus</button>
       <button data-go="ttt">Tic-tac-toe</button>
       <button data-go="chess">Chess</button>
       <button data-go="spend">Spend</button>
@@ -223,7 +224,8 @@ button:focus-visible { outline: 3px solid var(--butter); outline-offset: 3px; }
 
 <script>
 const RULES = { probesNeeded: 3, passPct: 80, minAnswered: 8, probeSecs: 60, rewardMins: 30, videoCost: 3, chessTickets: 2,
-  bonusSecsPerExtra: 30, bonusMaxSecs: 15 * 60, tttTradeSecs: 180, defaultPin: "2468" };
+  bonusSecsPerExtra: 30, bonusMaxSecs: 15 * 60, videoMaxMins: 45, tttTradeSecs: 180, defaultPin: "2468",
+  superNeed: 8, superTickets: 3, superMax: 12 };
 const DEFAULT_STORE = [
   { id: "flash", name: "The Flash", group: "dc", tier: 3, cost: 8 },
   { id: "batman", name: "Batman", group: "dc", tier: 2, cost: 5 },
@@ -275,7 +277,7 @@ const LESSONS = [
 
 /* ---- State ---- */
 const KEY = "cooper-tickets-v2";
-function fresh() { return { view: "home", bank: 0, earned: 0, session: 0, games: 0, gamesLeft: 0, lessonsDone: 0, lastProbe: null, left: 0, speed: 1, muted: false, store: DEFAULT_STORE.map(s => ({ ...s })), owned: [], tttStats: { w: 0, t: 0, l: 0, level: 1 }, bonusSecs: 0, sessRights: [], pin: RULES.defaultPin, top: [] }; }
+function fresh() { return { view: "home", bank: 0, earned: 0, session: 0, games: 0, gamesLeft: 0, lessonsDone: 0, lastProbe: null, left: 0, speed: 1, muted: false, store: DEFAULT_STORE.map(s => ({ ...s })), owned: [], tttStats: { w: 0, t: 0, l: 0, level: 1 }, bonusSecs: 0, sessRights: [], pin: RULES.defaultPin, top: [], sessWrong: [], missCounts: {}, superReady: false, superDone: 0 }; }
 let S = fresh();
 try { const raw = localStorage.getItem(KEY); if (raw) { const saved = JSON.parse(raw); S = { ...fresh(), ...saved, view: "home", speed: 1, left: saved.left || 0 }; if (!Array.isArray(S.store) || !S.store.length) S.store = DEFAULT_STORE.map(s => ({ ...s })); if (!S.tttStats) S.tttStats = { w: 0, t: 0, l: 0, level: 1 }; if (!Array.isArray(S.sessRights)) S.sessRights = []; if (!S.pin) S.pin = RULES.defaultPin; } } catch (e) {}
 const bonusMin = () => Math.round(S.bonusSecs / 60 * 10) / 10;
@@ -305,6 +307,7 @@ function renderRecords() {
     '<div class="rec"><span>Tic-tac-toe</span><b>' + t.w + '-' + t.t + '-' + t.l + '</b></div>' +
     '<div class="rec"><span>Tic-tac-toe level</span><b>' + t.level + ' / 10</b></div>' +
     '<div class="rec"><span>Chess lessons</span><b>' + S.lessonsDone + '</b></div>' +
+    '<div class="rec"><span>Super bonuses</span><b>' + (S.superDone || 0) + '</b></div>' +
     '<div class="rec"><span>Tickets ever</span><b>' + S.earned + '</b></div>' +
     '<button class="party" id="party" aria-label="Confetti">🎉 Confetti!</button>';
   $("#party").onclick = () => { confetti(); speak("Hooray, Cooper!"); };
@@ -321,7 +324,7 @@ function scoresHTML() {
 function ticketsHTML() {
   const res = S.sessPass || [];
   let h = '<div class="tickets" aria-label="' + res.filter(Boolean).length + ' tickets earned this session">';
-  for (let i = 0; i < RULES.probesNeeded; i++) h += '<div class="tk' + (res[i] === true ? " on" : res[i] === false ? " missed" : "") + '">' + (res[i] === true ? "TICKET" : res[i] === false ? "✗" : (i + 1)) + "</div>";
+  for (let i = 0; i < RULES.probesNeeded; i++) h += '<div class="tk' + (res[i] === true ? " on" : "") + '">' + (res[i] === true ? "TICKET" : (i + 1)) + "</div>";
   return h + "</div>";
 }
 function newProblem() {
@@ -333,6 +336,7 @@ function go(view) {
   stopTick(); S.view = view;
   document.querySelectorAll("#jump button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.go === view)));
   if (view === "probe") return startProbe();
+  if (view === "super") return startSuper();
   if (view === "ttt") { if (S.gamesLeft <= 0) S.gamesLeft = Math.max(1, S.session); return startTTT(); }
   if (view === "chess") return startChess();
   if (view === "watching" && S.left <= 0) S.left = 18 * 60 + 40;
@@ -355,13 +359,23 @@ function render() {
       '<h2>' + r.right + ' right out of ' + r.done + '</h2>' + (r.bonusNote ? '<div class="bonus">⏱ ' + r.bonusNote + '</div>' : "") +
       (r.nextGoal ? '<div class="goal"><b>Next round:</b> get <span class="goalnum">' + r.nextGoal.x + '</span> or more right ' + (r.nextGoal.start ? 'to start a bonus: <span class="goalnum">' + fmtMin(r.nextGoal.y) + '</span> for every extra one!' : 'and your bonus doubles to <span class="goalnum">' + fmtMin(r.nextGoal.y) + '</span>!') + '</div>' : "") +
       ticketsHTML(S.session) + bankHTML() +
-      '<p class="sub">' + (won ? (last ? "That's all your probes for today!" : "Only " + (RULES.probesNeeded - S.session) + " more to go.")
-        : (r.done < RULES.minAnswered ? "Try to answer at least " + RULES.minAnswered + " problems." : "You need " + RULES.passPct + "% right. You can do it!")) + '</p>' +
-      (last ? '<button class="big alt" id="next">Play tic-tac-toe</button>' : '<button class="big" id="next">' + (won ? "Next probe" : "Try again") + '</button>');
-    $("#next").onclick = () => { if (last) { S.gamesLeft = S.session_earned || 0; go(S.gamesLeft > 0 ? "ttt" : "chess"); } else go("probe"); };
+      '<p class="sub">' + (won ? (last ? "That's all 3 tickets!" : "Only " + (RULES.probesNeeded - S.session) + " more to go.")
+        : (r.done < RULES.minAnswered ? "Try to answer at least " + RULES.minAnswered + " problems. Redo this probe to earn the ticket." : "You need " + RULES.passPct + "% right. Redo this probe to earn the ticket!")) + '</p>' +
+      (last && S.superReady ? '<div class="choices"><button class="big" id="super">⭐ Super Bonus: fix my mistakes</button><button class="big alt" id="next">Skip to tic-tac-toe</button></div>'
+        : last ? '<button class="big alt" id="next">Play tic-tac-toe</button>' : '<button class="big" id="next">' + (won ? "Next probe" : "Redo probe " + (S.session + 1)) + '</button>');
+    $("#next").onclick = () => { if (last) { S.superReady = false; S.gamesLeft = S.session_earned || 0; go(S.gamesLeft > 0 ? "ttt" : "chess"); } else go("probe"); };
+    const sb = $("#super"); if (sb) sb.onclick = () => go("super");
     if (r.record && !r.doubled) { confetti(); speak("New record! " + r.right + " right!"); }
     if (r.doubled) { confetti(); speak("Bonus doubled! " + (r.nextGoal ? "Get " + r.nextGoal.x + " right next round to double it again." : "")); }
     else if (r.nextGoal) speak(r.nextGoal.start ? "Get " + r.nextGoal.x + " right next round to start a bonus." : "Get " + r.nextGoal.x + " right next round and your bonus doubles.");
+  } else if (v === "superResult") {
+    const r = S.lastSuper;
+    scr.innerHTML = (r.won ? '<div class="doubled">SUPER BONUS!</div>' : '<div class="stamp miss">Good practice!</div>') +
+      '<h2>' + r.right + ' right out of ' + r.done + '</h2>' +
+      (r.won ? '<div class="bonus">🎟 +' + RULES.superTickets + ' tickets for fixing your mistakes!</div>' : '<p class="sub">You need ' + RULES.superNeed + ' right for the super bonus. Those problems will come back next time!</p>') +
+      bankHTML() + '<button class="big alt" id="next">Play tic-tac-toe</button>';
+    $("#next").onclick = () => { S.gamesLeft = S.session_earned || 0; go(S.gamesLeft > 0 ? "ttt" : "chess"); };
+    if (r.won) { confetti(); speak("Super bonus! " + RULES.superTickets + " tickets!"); } else speak("Good practice, Cooper. You got " + r.right + " right.");
   } else if (v === "spend") {
     const canVid = S.bank >= RULES.videoCost;
     scr.innerHTML = '<h2>What do you want to do?</h2>' + bankHTML() +
@@ -371,7 +385,12 @@ function render() {
       '<button class="big" id="shop">Sticker store</button>' +
       '<button class="big quiet" id="keep">Save my tickets</button></div>' +
       (canVid ? "" : '<p class="note">You need ' + RULES.videoCost + ' tickets for videos. You have ' + S.bank + '. Do more math probes to earn more!</p>');
-    $("#vid").onclick = () => { if (S.bank < RULES.videoCost) return; S.bank -= RULES.videoCost; S.left = RULES.rewardMins * 60 + S.bonusSecs; S.bonusSecs = 0; S.session = 0; go("earned"); };
+    $("#vid").onclick = () => {
+      if (S.bank < RULES.videoCost) return;
+      // Videos never exceed the cap. Bonus that doesn't fit stays banked.
+      const cap = RULES.videoMaxMins * 60, base = RULES.rewardMins * 60, use = Math.min(S.bonusSecs, Math.max(0, cap - base));
+      S.bank -= RULES.videoCost; S.left = Math.min(cap, base + use); S.bonusSecs -= use; S.session = 0; go("earned");
+    };
     const tr = $("#tradeTtt"); if (tr) tr.onclick = () => { if (S.bonusSecs < RULES.tttTradeSecs) return; S.bonusSecs -= RULES.tttTradeSecs; S.gamesLeft = 1; save(); go("ttt"); };
     $("#shop").onclick = () => go("store");
     $("#keep").onclick = () => { S.session = 0; go("home"); };
@@ -402,18 +421,12 @@ function runClock() {
 /* ---- Math probe ---- */
 function startProbe() {
   if (S.session >= RULES.probesNeeded) S.session = 0;
-  if (S.session === 0) { S.session_earned = 0; S.sessBonus = 0; S.sessRights = []; S.sessPass = []; }
-  probe = { left: RULES.probeSecs, right: 0, done: 0, cur: newProblem(), typed: "" };
+  if (S.session === 0) { S.session_earned = 0; S.sessBonus = 0; S.sessRights = []; S.sessPass = []; S.sessWrong = []; S.superReady = false; }
+  probe = { left: RULES.probeSecs, right: 0, done: 0, cur: newProblem(), typed: "", wrong: [] };
   scr.innerHTML = '<div class="meta"><span id="pnum">Probe ' + (S.session + 1) + ' of ' + RULES.probesNeeded + '</span><span id="score">0 right</span></div>' +
     '<div class="timerbar" aria-hidden="true"><i id="tb" style="width:100%"></i></div>' +
-    '<div class="problem"><span id="q"></span> = <span class="answer" id="ans">&nbsp;</span></div>' +
-    '<div class="pad" id="pad"></div><div class="flash" id="flash" role="status"></div>';
-  const pad = $("#pad");
-  ["1","2","3","4","5","6","7","8","9","⌫","0","Go"].forEach(k => {
-    const b = document.createElement("button"); b.textContent = k; b.id = "k" + (k === "⌫" ? "del" : k); if (k === "Go") b.className = "go";
-    b.setAttribute("aria-label", k === "⌫" ? "Erase" : k === "Go" ? "Check answer" : k);
-    b.onclick = () => key(k); pad.appendChild(b);
-  });
+    padHTML();
+  wirePad();
   showQ();
   tick = setInterval(() => {
     probe.left = Math.max(0, probe.left - S.speed);
@@ -421,26 +434,91 @@ function startProbe() {
     if (probe.left <= 0) finishProbe();
   }, 1000);
 }
+function padHTML() {
+  return '<div class="problem"><span id="q"></span> = <span class="answer" id="ans">&nbsp;</span></div>' +
+    '<div class="pad" id="pad"></div><div class="flash" id="flash" role="status"></div>';
+}
+function wirePad() {
+  const pad = $("#pad");
+  ["1","2","3","4","5","6","7","8","9","⌫","0","Go"].forEach(k => {
+    const b = document.createElement("button"); b.textContent = k; b.id = "k" + (k === "⌫" ? "del" : k); if (k === "Go") b.className = "go";
+    b.setAttribute("aria-label", k === "⌫" ? "Erase" : k === "Go" ? "Check answer" : k);
+    b.onclick = () => key(k); pad.appendChild(b);
+  });
+}
+/* Super bonus: redo this session's wrong answers; pad from most-missed problems, then random ones, to at least 8. */
+function superList() {
+  const seen = new Set(), list = [];
+  const add = p => { if (!seen.has(p.q) && list.length < RULES.superMax) { seen.add(p.q); list.push({ q: p.q, a: p.a }); } };
+  (S.sessWrong || []).forEach(add);
+  if (list.length < RULES.superNeed) Object.entries(S.missCounts || {}).sort((a, b) => b[1] - a[1]).forEach(([q]) => { if (list.length < RULES.superNeed) add({ q, a: evalQ(q) }); });
+  let guard = 0; while (list.length < RULES.superNeed && guard++ < 200) add(newProblem());
+  return list;
+}
+function evalQ(q) { const [a, op, b] = q.split(" "); return op === "+" ? Number(a) + Number(b) : Number(a) - Number(b); }
+function startSuper() {
+  stopTick();
+  const list = superList();
+  probe = { left: 0, right: 0, done: 0, list, idx: 0, cur: list[0], typed: "", wrong: [] };
+  scr.innerHTML = '<div class="stamp">⭐ Correct Your Errors · SUPER BONUS</div>' +
+    '<div class="meta"><span id="pnum">Problem 1 of ' + list.length + '</span><span id="score">0 right</span></div>' +
+    '<p class="note">These are the ones you missed. Get ' + RULES.superNeed + ' right to win ' + RULES.superTickets + ' tickets! No timer.</p>' +
+    padHTML();
+  wirePad(); showQ();
+  speak("Super bonus! These are the ones you missed. Get " + RULES.superNeed + " right to win " + RULES.superTickets + " tickets. Take your time.");
+}
+function finishSuper() {
+  rememberWrong(probe.wrong);
+  const won = probe.right >= RULES.superNeed;
+  if (won) { S.bank += RULES.superTickets; S.earned += RULES.superTickets; S.superDone++; }
+  S.superReady = false; S.sessWrong = [];
+  S.lastSuper = { right: probe.right, done: probe.done, won };
+  S.view = "superResult"; render(); save();
+}
 function flash(ok) {
   const f = $("#flash"); if (!f) return;
   f.className = "flash " + (ok ? "yes" : "no"); f.textContent = ok ? "✓" : "✗"; f.setAttribute("aria-label", ok ? "Correct" : "Wrong");
   clearTimeout(flash.t); flash.t = setTimeout(() => { f.className = "flash"; }, 650);
 }
-function showQ() { $("#q").textContent = probe.cur.q; $("#ans").innerHTML = probe.typed || "&nbsp;"; $("#score").textContent = probe.right + " right"; }
+function showQ(done) { if (!done) $("#q").textContent = probe.cur.q; $("#ans").innerHTML = probe.typed || "&nbsp;"; $("#score").textContent = probe.right + " right"; if (probe.list) $("#pnum").textContent = "Problem " + Math.min(probe.idx + 1, probe.list.length) + " of " + probe.list.length; }
 function key(k) {
   if (k === "⌫") probe.typed = probe.typed.slice(0, -1);
-  else if (k === "Go") { if (!probe.typed) return; probe.done++; const ok = Number(probe.typed) === probe.cur.a; if (ok) probe.right++; flash(ok); probe.cur = newProblem(); probe.typed = ""; }
+  else if (k === "Go") {
+    if (!probe.typed) return;
+    probe.done++; const ok = Number(probe.typed) === probe.cur.a;
+    if (ok) probe.right++; else probe.wrong.push(probe.cur);
+    flash(ok); probe.typed = "";
+    if (probe.list) { probe.idx++; if (probe.idx >= probe.list.length) { showQ(true); return finishSuper(); } probe.cur = probe.list[probe.idx]; }
+    else probe.cur = newProblem();
+  }
   else if (probe.typed.length < 2) probe.typed += k;
   showQ();
+}
+function rememberWrong(list) {
+  S.sessWrong = (S.sessWrong || []).concat(list);
+  S.missCounts = S.missCounts || {};
+  list.forEach(p => { S.missCounts[p.q] = (S.missCounts[p.q] || 0) + 1; });
+}
+function goalFor(right) {
+  return S.sessBonus > 0 ? { x: right, y: Math.min(RULES.bonusMaxSecs, S.sessBonus * 2), now: S.sessBonus } : { start: true, x: RULES.minAnswered + 1, y: RULES.bonusSecsPerExtra };
 }
 function finishProbe() {
   stopTick();
   const pct = probe.done ? Math.round(100 * probe.right / probe.done) : 0;
   const pass = probe.done >= RULES.minAnswered && pct >= RULES.passPct;
+  rememberWrong(probe.wrong);
+  const oldBest = (S.top && S.top[0]) ? S.top[0].right : 0;
+  S.top = (S.top || []).concat([{ right: probe.right, done: probe.done, when: Date.now() }]).sort((a, b) => b.right - a.right || a.when - b.when).slice(0, 3);
+  const record = probe.right > 0 && probe.right > oldBest;
+  if (!pass) {
+    // Failed: the slot stays open and he redoes this probe. Bonus is untouched.
+    S.lastProbe = { right: probe.right, done: probe.done, pass: false, bonusNote: "", doubled: false, nextGoal: goalFor(probe.right), record };
+    S.view = "result"; render(); save(); return;
+  }
   S.session++;
   if (!Array.isArray(S.sessPass)) S.sessPass = [];
-  S.sessPass[S.session - 1] = pass;
-  if (pass) { S.bank++; S.earned++; S.session_earned = (S.session_earned || 0) + 1; }
+  S.sessPass[S.session - 1] = true;
+  S.bank++; S.earned++; S.session_earned = (S.session_earned || 0) + 1;
   // Bonus minutes: probe 1 earns 30 s per correct answer past 8; each later probe that matches or beats
   // the previous probe's count doubles the session bonus. Capped at bonusMaxSecs.
   const n = S.session, prev = S.sessRights[n - 2], before = S.sessBonus || 0;
@@ -461,14 +539,9 @@ function finishProbe() {
   S.sessRights[n - 1] = probe.right;
   // Goal for the next probe: match this probe's count to double the bonus.
   let nextGoal = null;
-  if (n < RULES.probesNeeded) nextGoal = S.sessBonus > 0 ? { x: probe.right, y: Math.min(RULES.bonusMaxSecs, S.sessBonus * 2), now: S.sessBonus }
-    : { start: true, x: RULES.minAnswered + 1, y: RULES.bonusSecsPerExtra };
-  if (n === RULES.probesNeeded) { S.bonusSecs = Math.min(RULES.bonusMaxSecs, S.bonusSecs + (S.sessBonus || 0)); S.sessBonus = 0; S.sessRights = []; }
-  S.lastProbe = { right: probe.right, done: probe.done, pass, bonusNote, doubled, nextGoal };
-  // Top-3 records: most right answers in one probe.
-  const oldBest = (S.top && S.top[0]) ? S.top[0].right : 0;
-  S.top = (S.top || []).concat([{ right: probe.right, done: probe.done, when: Date.now() }]).sort((a, b) => b.right - a.right || a.when - b.when).slice(0, 3);
-  S.lastProbe.record = probe.right > 0 && probe.right > oldBest;
+  if (n < RULES.probesNeeded) nextGoal = goalFor(probe.right);
+  if (n === RULES.probesNeeded) { S.bonusSecs = Math.min(RULES.bonusMaxSecs, S.bonusSecs + (S.sessBonus || 0)); S.sessBonus = 0; S.sessRights = []; S.superReady = true; }
+  S.lastProbe = { right: probe.right, done: probe.done, pass, bonusNote, doubled, nextGoal, record };
   S.view = "result"; render(); save();
 }
 
@@ -601,7 +674,7 @@ function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<":
 
 /* ---- Parent panel ---- */
 function parentPanel() {
-  $("#pBank").textContent = S.bank; $("#pVid").textContent = RULES.videoCost; $("#pMin").textContent = RULES.rewardMins; $("#pBonus").textContent = bonusMin();
+  $("#pBank").textContent = S.bank; $("#pVid").textContent = RULES.videoCost; $("#pMin").textContent = RULES.rewardMins; $("#pBonus").textContent = bonusMin(); $("#pMax").textContent = RULES.videoMaxMins;
   $("#pLessons").textContent = S.lessonsDone; $("#pLessonsTotal").textContent = LESSONS.length; $("#pChess").textContent = RULES.chessTickets;
   $("#pTTT").textContent = S.tttStats.w + "-" + S.tttStats.t + "-" + S.tttStats.l; $("#pLevel").textContent = S.tttStats.level;
   const pending = S.owned.filter(o => !o.given);
