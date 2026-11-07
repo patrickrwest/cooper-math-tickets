@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="docs/icon-192.png">
 <link rel="manifest" href="manifest.json">
@@ -31,9 +31,34 @@
   --sq-light: #d8c3a0; --sq-dark: #8a6244; --sq-pick: #f2c94c; color-scheme: dark }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+html, body, button { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.flash { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font: 700 min(60vw, 60vh) var(--display); line-height: 1; opacity: 0; z-index: 15; }
+.flash.yes { color: var(--mint); animation: pop .65s ease-out; }
+.flash.no { color: var(--ticket); animation: pop .65s ease-out; }
+@keyframes pop { 0% { opacity: 0; transform: scale(.4); } 15% { opacity: .95; transform: scale(1.05); } 70% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(1.1); } }
+.confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 30; }
+.doubled { font: 700 clamp(28px, 7vw, 44px) var(--display); color: var(--butter); letter-spacing: .04em; animation: bounce .8s ease-out; }
+@keyframes bounce { 0% { transform: scale(.5); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+.goal { background: var(--sky); color: #fff; border-radius: 20px; padding: 14px 18px; max-width: 36ch; font-size: 18px; line-height: 1.4; }
+.goal .goalnum { font: 700 1.35em var(--display); color: var(--butter); }
+@media (prefers-reduced-motion: reduce) { .flash.yes, .flash.no { animation: none; opacity: .9; } .doubled { animation: none; } }
 body { background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 17px;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 40px; }
-.wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 16px; }
+.wrap { max-width: 960px; margin: 0 auto; display: grid; gap: 16px; }
+.stage { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 760px) { .stage { grid-template-columns: 220px minmax(0, 1fr); align-items: start; } }
+.records { background: var(--card); border: 2px solid var(--line); border-radius: 22px; padding: 16px; display: grid; gap: 10px; min-width: 0; }
+.records h3 { font: 700 15px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); margin: 0; }
+.records ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.records li { display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 8px; background: var(--paper); border-radius: 14px; padding: 8px 10px; }
+.records .medal { font-size: 24px; text-align: center; }
+.records b { font: 700 24px var(--display); font-variant-numeric: tabular-nums; }
+.records small { color: var(--ink-soft); font-size: 12px; display: block; }
+.records .empty { color: var(--ink-soft); font-size: 14px; }
+.records .rec { display: flex; justify-content: space-between; font-size: 14px; color: var(--ink-soft); }
+.records .rec b { font-size: 16px; }
+@media (max-width: 759px) { .records ol { grid-template-columns: repeat(3, 1fr); } .records li { grid-template-columns: 1fr; text-align: center; gap: 2px; } }
 .bar { background: var(--bar); color: var(--bar-ink); border-radius: 14px; padding: 12px 14px; display: grid; gap: 10px; }
 .bar summary { font-family: var(--display); font-weight: 600; letter-spacing: .02em; cursor: pointer; }
 .bar p { margin: 0; font-size: 14px; opacity: .85; }
@@ -178,7 +203,10 @@ button:focus-visible { outline: 3px solid var(--butter); outline-offset: 3px; }
     <p>Chess lessons passed: <b id="pLessons">0</b> (<span id="pLessonsTotal"></span> different lessons, then they repeat; each pass pays <span id="pChess"></span> tickets). Tic-tac-toe: <b id="pTTT">0-0-0</b> (wins-ties-losses), level <b id="pLevel">1</b> of 10 (levels 1–5 are easy wins; it gets grown-up around 9–10).</p>
   </details>
 
-  <main class="screen" id="screen" aria-live="polite"></main>
+  <div class="stage">
+    <aside class="records" id="records" aria-label="Top scores"></aside>
+    <main class="screen" id="screen" aria-live="polite"></main>
+  </div>
   <div class="foot"><button class="plink" id="plink">Parent</button></div>
 </div>
 <div class="pinwrap" id="pinwrap" hidden>
@@ -244,14 +272,14 @@ const LESSONS = [
 
 /* ---- State ---- */
 const KEY = "cooper-tickets-v2";
-function fresh() { return { view: "home", bank: 0, earned: 0, session: 0, games: 0, gamesLeft: 0, lessonsDone: 0, lastProbe: null, left: 0, speed: 1, muted: false, store: DEFAULT_STORE.map(s => ({ ...s })), owned: [], tttStats: { w: 0, t: 0, l: 0, level: 1 }, bonusSecs: 0, sessRights: [], pin: RULES.defaultPin }; }
+function fresh() { return { view: "home", bank: 0, earned: 0, session: 0, games: 0, gamesLeft: 0, lessonsDone: 0, lastProbe: null, left: 0, speed: 1, muted: false, store: DEFAULT_STORE.map(s => ({ ...s })), owned: [], tttStats: { w: 0, t: 0, l: 0, level: 1 }, bonusSecs: 0, sessRights: [], pin: RULES.defaultPin, top: [] }; }
 let S = fresh();
 try { const raw = localStorage.getItem(KEY); if (raw) { const saved = JSON.parse(raw); S = { ...fresh(), ...saved, view: "home", speed: 1, left: saved.left || 0 }; if (!Array.isArray(S.store) || !S.store.length) S.store = DEFAULT_STORE.map(s => ({ ...s })); if (!S.tttStats) S.tttStats = { w: 0, t: 0, l: 0, level: 1 }; if (!Array.isArray(S.sessRights)) S.sessRights = []; if (!S.pin) S.pin = RULES.defaultPin; } } catch (e) {}
 const bonusMin = () => Math.round(S.bonusSecs / 60 * 10) / 10;
 let PICS = {}; // sticker pictures live in their own key so a bad photo can't wipe the scores
 try { PICS = JSON.parse(localStorage.getItem(KEY + "-pics") || "{}") || {}; } catch (e) {}
 function savePics() { try { localStorage.setItem(KEY + "-pics", JSON.stringify(PICS)); return true; } catch (e) { return false; } }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} parentPanel(); }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} parentPanel(); renderRecords(); }
 let probe = null, tick = null;
 const $ = (s) => document.querySelector(s);
 const scr = $("#screen");
@@ -265,6 +293,17 @@ function speak(text) {
 function fmt(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return m + ":" + String(s).padStart(2, "0"); }
 function fmtMin(sec) { const m = Math.floor(sec / 60), s = sec % 60; return m ? (m + (s ? "½" : "") + " min") : s + " sec"; }
 function bankHTML() { return '<div class="bank">🎟 ' + S.bank + ' <small>tickets</small>' + (S.bonusSecs ? ' <small>·</small> ⏱ ' + fmtMin(S.bonusSecs) + ' <small>bonus</small>' : "") + '</div>'; }
+function renderRecords() {
+  const top = S.top || [], t = S.tttStats, medals = ["🥇", "🥈", "🥉"];
+  $("#records").innerHTML = '<h3>Top 3 math probes</h3>' +
+    (top.length ? '<ol>' + top.map((r, i) => '<li><span class="medal">' + medals[i] + '</span><div><b>' + r.right + '</b><small>right · ' + new Date(r.when).toLocaleDateString(undefined, { month: "short", day: "numeric" }) + '</small></div></li>').join("") + '</ol>'
+      : '<p class="empty">Do a math probe to set your first record!</p>') +
+    '<h3>Records</h3>' +
+    '<div class="rec"><span>Tic-tac-toe</span><b>' + t.w + '-' + t.t + '-' + t.l + '</b></div>' +
+    '<div class="rec"><span>Tic-tac-toe level</span><b>' + t.level + ' / 10</b></div>' +
+    '<div class="rec"><span>Chess lessons</span><b>' + S.lessonsDone + '</b></div>' +
+    '<div class="rec"><span>Tickets ever</span><b>' + S.earned + '</b></div>';
+}
 function scoresHTML() {
   const t = S.tttStats;
   return '<div class="scores" aria-label="Cooper\'s scores">' +
@@ -306,12 +345,17 @@ function render() {
     const sp = $("#spendNow"); if (sp) sp.onclick = () => go("spend");
   } else if (v === "result") {
     const r = S.lastProbe, won = r.pass, last = S.session >= RULES.probesNeeded;
-    scr.innerHTML = '<div class="stamp' + (won ? "" : " miss") + '">' + (won ? "Ticket earned!" : "So close!") + '</div>' +
-      '<h2>' + r.right + ' right out of ' + r.done + '</h2>' + (r.bonusNote ? '<div class="bonus">⏱ ' + r.bonusNote + '</div>' : "") + ticketsHTML(S.session) + bankHTML() +
+    scr.innerHTML = (r.doubled ? '<div class="doubled">BONUS DOUBLED!</div>' : r.record ? '<div class="doubled">NEW RECORD!</div>' : '<div class="stamp' + (won ? "" : " miss") + '">' + (won ? "Ticket earned!" : "So close!") + '</div>') +
+      '<h2>' + r.right + ' right out of ' + r.done + '</h2>' + (r.bonusNote ? '<div class="bonus">⏱ ' + r.bonusNote + '</div>' : "") +
+      (r.nextGoal ? '<div class="goal"><b>Next round:</b> get <span class="goalnum">' + r.nextGoal.x + '</span> or more right and your bonus doubles to <span class="goalnum">' + fmtMin(r.nextGoal.y) + '</span>!</div>' : "") +
+      ticketsHTML(S.session) + bankHTML() +
       '<p class="sub">' + (won ? (last ? "That's all your probes for today!" : "Only " + (RULES.probesNeeded - S.session) + " more to go.")
         : (r.done < RULES.minAnswered ? "Try to answer at least " + RULES.minAnswered + " problems." : "You need " + RULES.passPct + "% right. You can do it!")) + '</p>' +
       (last ? '<button class="big alt" id="next">Play tic-tac-toe</button>' : '<button class="big" id="next">' + (won ? "Next probe" : "Try again") + '</button>');
     $("#next").onclick = () => { if (last) { S.gamesLeft = S.session_earned || 0; go(S.gamesLeft > 0 ? "ttt" : "chess"); } else go("probe"); };
+    if (r.record && !r.doubled) { confetti(); speak("New record! " + r.right + " right!"); }
+    if (r.doubled) { confetti(); speak("Bonus doubled! " + (r.nextGoal ? "Get " + r.nextGoal.x + " right next round to double it again." : "")); }
+    else if (r.nextGoal) speak("Get " + r.nextGoal.x + " right next round and your bonus doubles.");
   } else if (v === "spend") {
     const canVid = S.bank >= RULES.videoCost;
     scr.innerHTML = '<h2>What do you want to do?</h2>' + bankHTML() +
@@ -357,7 +401,7 @@ function startProbe() {
   scr.innerHTML = '<div class="meta"><span id="pnum">Probe ' + (S.session + 1) + ' of ' + RULES.probesNeeded + '</span><span id="score">0 right</span></div>' +
     '<div class="timerbar" aria-hidden="true"><i id="tb" style="width:100%"></i></div>' +
     '<div class="problem"><span id="q"></span> = <span class="answer" id="ans">&nbsp;</span></div>' +
-    '<div class="pad" id="pad"></div>';
+    '<div class="pad" id="pad"></div><div class="flash" id="flash" role="status"></div>';
   const pad = $("#pad");
   ["1","2","3","4","5","6","7","8","9","⌫","0","Go"].forEach(k => {
     const b = document.createElement("button"); b.textContent = k; b.id = "k" + (k === "⌫" ? "del" : k); if (k === "Go") b.className = "go";
@@ -371,10 +415,15 @@ function startProbe() {
     if (probe.left <= 0) finishProbe();
   }, 1000);
 }
+function flash(ok) {
+  const f = $("#flash"); if (!f) return;
+  f.className = "flash " + (ok ? "yes" : "no"); f.textContent = ok ? "✓" : "✗"; f.setAttribute("aria-label", ok ? "Correct" : "Wrong");
+  clearTimeout(flash.t); flash.t = setTimeout(() => { f.className = "flash"; }, 650);
+}
 function showQ() { $("#q").textContent = probe.cur.q; $("#ans").innerHTML = probe.typed || "&nbsp;"; $("#score").textContent = probe.right + " right"; }
 function key(k) {
   if (k === "⌫") probe.typed = probe.typed.slice(0, -1);
-  else if (k === "Go") { if (!probe.typed) return; probe.done++; if (Number(probe.typed) === probe.cur.a) probe.right++; probe.cur = newProblem(); probe.typed = ""; }
+  else if (k === "Go") { if (!probe.typed) return; probe.done++; const ok = Number(probe.typed) === probe.cur.a; if (ok) probe.right++; flash(ok); probe.cur = newProblem(); probe.typed = ""; }
   else if (probe.typed.length < 2) probe.typed += k;
   showQ();
 }
@@ -387,19 +436,26 @@ function finishProbe() {
   // Bonus minutes: probe 1 earns 30 s per correct answer past 8; each later probe that matches or beats
   // the previous probe's count doubles the session bonus. Capped at bonusMaxSecs.
   const n = S.session, prev = S.sessRights[n - 2], before = S.sessBonus || 0;
-  let bonusNote = "";
+  let bonusNote = "", doubled = false;
   if (n === 1) {
     S.sessBonus = Math.max(0, probe.right - RULES.minAnswered) * RULES.bonusSecsPerExtra;
     if (S.sessBonus) bonusNote = "Bonus: " + fmtMin(S.sessBonus) + " for " + (probe.right - RULES.minAnswered) + " extra right!";
   } else if (probe.right >= prev && before > 0) {
-    S.sessBonus = Math.min(RULES.bonusMaxSecs, before * 2);
+    S.sessBonus = Math.min(RULES.bonusMaxSecs, before * 2); doubled = true;
     bonusNote = "You matched probe " + (n - 1) + "! Bonus doubled to " + fmtMin(S.sessBonus) + (S.sessBonus >= RULES.bonusMaxSecs ? " (the max)" : "") + ".";
   } else if (before > 0) {
-    bonusNote = "You keep your " + fmtMin(before) + " bonus. Get " + prev + " right next time to double it.";
+    bonusNote = "You keep your " + fmtMin(before) + " bonus.";
   }
   S.sessRights[n - 1] = probe.right;
+  // Goal for the next probe: match this probe's count to double the bonus.
+  let nextGoal = null;
+  if (n < RULES.probesNeeded && S.sessBonus > 0) nextGoal = { x: probe.right, y: Math.min(RULES.bonusMaxSecs, S.sessBonus * 2), now: S.sessBonus };
   if (n === RULES.probesNeeded) { S.bonusSecs = Math.min(RULES.bonusMaxSecs, S.bonusSecs + (S.sessBonus || 0)); S.sessBonus = 0; S.sessRights = []; }
-  S.lastProbe = { right: probe.right, done: probe.done, pass, bonusNote };
+  S.lastProbe = { right: probe.right, done: probe.done, pass, bonusNote, doubled, nextGoal };
+  // Top-3 records: most right answers in one probe.
+  const oldBest = (S.top && S.top[0]) ? S.top[0].right : 0;
+  S.top = (S.top || []).concat([{ right: probe.right, done: probe.done, when: Date.now() }]).sort((a, b) => b.right - a.right || a.when - b.when).slice(0, 3);
+  S.lastProbe.record = probe.right > 0 && probe.right > oldBest;
   S.view = "result"; render(); save();
 }
 
@@ -567,6 +623,28 @@ $("#picFile").onchange = () => {
   };
   rd.readAsDataURL(file); $("#picFile").value = "";
 };
+/* ---- Confetti ---- */
+function confetti() {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const c = document.createElement("canvas"); c.className = "confetti"; document.body.appendChild(c);
+  const ctx = c.getContext("2d"), dpr = Math.min(2, devicePixelRatio || 1);
+  c.width = innerWidth * dpr; c.height = innerHeight * dpr; ctx.scale(dpr, dpr);
+  const colors = ["#d94f3d", "#f5c84b", "#3f9b7a", "#3b7dd8", "#fff8ef"];
+  const P = Array.from({ length: 160 }, () => ({ x: innerWidth / 2 + (Math.random() - .5) * 120, y: innerHeight * .45, vx: (Math.random() - .5) * 14, vy: -6 - Math.random() * 12,
+    w: 6 + Math.random() * 6, h: 8 + Math.random() * 8, r: Math.random() * Math.PI, vr: (Math.random() - .5) * .3, col: colors[Math.floor(Math.random() * colors.length)] }));
+  let t = 0;
+  (function frame() {
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    P.forEach(p => { p.vy += .35; p.x += p.vx; p.y += p.vy; p.vx *= .99; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.col; ctx.globalAlpha = Math.max(0, 1 - t / 150); ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore(); });
+    if (++t < 150) requestAnimationFrame(frame); else c.remove();
+  })();
+}
+/* Lock pinch-zoom and double-tap zoom so stray taps during a probe don't resize the screen. */
+document.addEventListener("gesturestart", e => e.preventDefault(), { passive: false });
+document.addEventListener("touchmove", e => { if (e.scale && e.scale !== 1) e.preventDefault(); }, { passive: false });
+(function () { const m = document.querySelector('meta[name="viewport"]'); if (m && !/maximum-scale/.test(m.content)) m.content += ",maximum-scale=1,user-scalable=no"; })();
+
 /* ---- Parent PIN lock ---- */
 let pinTyped = "";
 function pinDots() { $("#pindots").textContent = "●".repeat(pinTyped.length) + "○".repeat(Math.max(0, 4 - pinTyped.length)); }
@@ -596,7 +674,7 @@ $("#fast").onclick = (e) => { S.speed = S.speed === 1 ? 20 : 1; e.target.setAttr
 $("#mute").onclick = (e) => { S.muted = !S.muted; e.target.setAttribute("aria-pressed", String(S.muted)); e.target.textContent = S.muted ? "Sound off" : "Sound on"; if (S.muted) try { speechSynthesis.cancel(); } catch (x) {} save(); };
 $("#reset").onclick = () => { const pin = S.pin; S = fresh(); S.pin = pin; $("#fast").setAttribute("aria-pressed", "false"); $("#mute").setAttribute("aria-pressed", "false"); $("#mute").textContent = "Sound on"; save(); go("home"); };
 $("#mute").setAttribute("aria-pressed", String(S.muted)); $("#mute").textContent = S.muted ? "Sound off" : "Sound on";
-parentPanel(); render();
+parentPanel(); renderRecords(); render();
 </script>
 </body>
 </html>
