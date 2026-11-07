@@ -90,6 +90,7 @@ h2 { font-size: clamp(22px, 4.5vw, 30px); font-weight: 600; }
 .clock { font: 700 clamp(56px, 14vw, 88px)/1 var(--display); font-variant-numeric: tabular-nums; }
 .big { font: 700 20px var(--display); background: var(--ticket); color: var(--ticket-ink); border: 0; border-radius: 999px; padding: 16px 30px; cursor: pointer; min-width: 240px; }
 .big.alt { background: var(--mint); }
+a.big { text-decoration: none; display: inline-block; text-align: center; }
 .big.sky { background: var(--sky); color: #fff; }
 .big.quiet { background: transparent; color: var(--ink); border: 2px solid var(--line); }
 .big:disabled { opacity: .45; cursor: not-allowed; }
@@ -226,7 +227,7 @@ button:focus-visible { outline: 3px solid var(--butter); outline-offset: 3px; }
 <script>
 const RULES = { probesNeeded: 3, passPct: 80, minAnswered: 8, probeSecs: 60, rewardMins: 30, videoCost: 3, chessTickets: 2,
   bonusSecsPerExtra: 30, bonusMaxSecs: 15 * 60, videoMaxMins: 45, tttTradeSecs: 180, defaultPin: "2468",
-  superNeed: 8, superTickets: 3, superMax: 12 };
+  superNeed: 8, superTickets: 3, superMax: 12, videoUrl: "https://www.youtube.com/" };
 const DEFAULT_STORE = [
   { id: "flash", name: "The Flash", group: "dc", tier: 3, cost: 8 },
   { id: "batman", name: "Batman", group: "dc", tier: 2, cost: 5 },
@@ -341,7 +342,7 @@ function go(view) {
   if (view === "ttt") { if (S.gamesLeft <= 0) S.gamesLeft = Math.max(1, S.session); return startTTT(); }
   if (view === "chess") return startChess();
   if (view === "watching" && S.left <= 0) S.left = 18 * 60 + 40;
-  if (view === "timeup") { S.left = 0; }
+  if (view === "timeup") { S.left = 0; S.endAt = 0; }
   render(); save();
   if (view === "watching") runClock();
 }
@@ -401,12 +402,14 @@ function render() {
     $("#keep").onclick = () => { S.session = 0; go("home"); };
   } else if (v === "earned") {
     scr.innerHTML = '<div class="stamp">Videos unlocked</div><div class="clock">' + fmt(S.left) + '</div>' +
-      '<p class="sub">Great job, Cooper! You have ' + Math.round(S.left / 60) + ' minutes of YouTube Kids' + (S.left > RULES.rewardMins * 60 ? ' (' + RULES.rewardMins + ' + your bonus)' : "") + '. The clock starts now.</p>' +
-      '<button class="big alt" id="watch">Go watch</button><p class="note">On the iPad, this button opens YouTube Kids.</p>';
-    $("#watch").onclick = () => go("watching");
+      '<p class="sub">Great job, Cooper! You have ' + Math.round(S.left / 60) + ' minutes of videos' + (S.left > RULES.rewardMins * 60 ? ' (' + RULES.rewardMins + ' + your bonus)' : "") + '. The clock starts when you tap Go watch.</p>' +
+      '<a class="big alt" id="watch" href="' + RULES.videoUrl + '" target="_blank" rel="noopener">▶ Go watch</a><p class="note">Opens YouTube. Come back here to see your time left.</p>';
+    $("#watch").onclick = () => { S.endAt = Date.now() + S.left * 1000; go("watching"); };
   } else if (v === "watching") {
     scr.innerHTML = '<h2>Video time left</h2><div class="clock" id="clock">' + fmt(S.left) + '</div>' +
-      '<p class="sub" id="warn">Enjoy your videos!</p><p class="note">Cooper sees this if he opens YouTube Kids while he still has time. It gets a 5-minute warning.</p>';
+      '<p class="sub" id="warn">Enjoy your videos!</p>' +
+      '<a class="big alt" href="' + RULES.videoUrl + '" target="_blank" rel="noopener">▶ Back to YouTube</a>' +
+      '<p class="note">The clock keeps running while you watch. It gives a 5-minute warning.</p>';
   } else if (v === "timeup") {
     scr.innerHTML = '<h1>Video time is over</h1>' + bankHTML() +
       '<p class="sub">Want more videos? Earn more tickets with math probes.</p>' +
@@ -415,13 +418,20 @@ function render() {
   } else if (v === "store") renderStore();
 }
 function runClock() {
-  tick = setInterval(() => {
-    S.left = Math.max(0, S.left - S.speed);
+  // Wall-clock based so time keeps counting while the YouTube app is in front.
+  if (!S.endAt) S.endAt = Date.now() + S.left * 1000;
+  let warned = false;
+  const step = () => {
+    if (S.speed > 1) S.endAt -= (S.speed - 1) * 1000;
+    S.left = Math.max(0, Math.round((S.endAt - Date.now()) / 1000));
     const c = $("#clock"); if (c) c.textContent = fmt(S.left);
-    const w = $("#warn"); if (w && S.left <= 300 && S.left > 0) w.textContent = "5 minutes left. Find a good stopping place.";
-    if (S.left <= 0) go("timeup");
-  }, 1000);
+    const w = $("#warn"); if (w && S.left <= 300 && S.left > 0) { w.textContent = "5 minutes left. Find a good stopping place."; if (!warned) { warned = true; speak("5 minutes left, Cooper."); } }
+    if (S.left <= 0) { S.endAt = 0; save(); go("timeup"); return; }
+    save();
+  };
+  step(); tick = setInterval(step, 1000);
 }
+document.addEventListener("visibilitychange", () => { if (!document.hidden && S.view === "watching") { stopTick(); runClock(); } });
 
 /* ---- Math probe ---- */
 function startProbe() {
@@ -766,7 +776,8 @@ $("#fast").onclick = (e) => { S.speed = S.speed === 1 ? 20 : 1; e.target.setAttr
 $("#mute").onclick = (e) => { S.muted = !S.muted; e.target.setAttribute("aria-pressed", String(S.muted)); e.target.textContent = S.muted ? "Sound off" : "Sound on"; if (S.muted) try { speechSynthesis.cancel(); } catch (x) {} save(); };
 $("#reset").onclick = () => { const pin = S.pin; S = fresh(); S.pin = pin; $("#fast").setAttribute("aria-pressed", "false"); $("#mute").setAttribute("aria-pressed", "false"); $("#mute").textContent = "Sound on"; save(); go("home"); };
 $("#mute").setAttribute("aria-pressed", String(S.muted)); $("#mute").textContent = S.muted ? "Sound off" : "Sound on";
-parentPanel(); renderRecords(); render();
+parentPanel(); renderRecords();
+if (S.endAt && S.endAt > Date.now()) go("watching"); else if (S.endAt) go("timeup"); else render();
 </script>
 </body>
 </html>
