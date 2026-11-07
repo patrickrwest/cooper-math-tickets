@@ -169,6 +169,10 @@ button:focus-visible { outline: 3px solid var(--butter); outline-offset: 3px; }
     <div class="row"><button id="lock">Lock parent panel</button></div>
     <h4>Parent PIN</h4>
     <div class="row"><input id="newPin" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="New PIN" aria-label="New PIN"><button id="setPin">Change PIN</button><span id="pinNote"></span></div>
+    <h4>Unlock bridge</h4>
+    <p>Unblocks videos in AdGuard while the clock runs, and blocks them again when time is up. The address and key are saved on this device only. Tailscale must be on.</p>
+    <div class="row"><input id="bUrl" class="wide" placeholder="https://….ts.net" aria-label="Bridge address" autocomplete="off"><input id="bKey" type="password" placeholder="Bridge key" aria-label="Bridge key" autocomplete="off"><button id="bSave">Save</button><button id="bTest">Test</button></div>
+    <p id="bNote"></p>
     <h4>Bonus minutes</h4>
     <p>Probe 1: 30 s per correct answer past 8. Probes 2 and 3 double the bonus when he matches or beats the previous probe. Max 15 min. Bonus banked: <b id="pBonus">0</b> min. <button id="bonusMinus">−1 min</button> <button id="bonusPlus">+1 min</button></p>
     <p>Rules: 3 math probes per session, 1 minute each, 80% right earns a ticket; a failed probe is redone. After probe 3, a Super Bonus round replays his wrong answers (padded from his most-missed problems to at least 8): 8 right pays 3 tickets. Videos never exceed <span id="pMax"></span> minutes; leftover bonus stays banked. Every video block needs a fresh round of 3 probes (banked tickets alone can't buy videos). Each ticket earned also earns one tic-tac-toe game. One chess lesson per session. Videos cost <span id="pVid"></span> tickets for <span id="pMin"></span> minutes. Tickets stay in the bank until spent on videos or stickers.</p>
@@ -287,7 +291,19 @@ let PICS = {}; // sticker pictures live in their own key so a bad photo can't wi
 try { PICS = JSON.parse(localStorage.getItem(KEY + "-pics") || "{}") || {}; } catch (e) {}
 function savePics() { try { localStorage.setItem(KEY + "-pics", JSON.stringify(PICS)); return true; } catch (e) { return false; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} parentPanel(); renderRecords(); }
-let probe = null, tick = null;
+let probe = null, tick = null, unlocking = Promise.resolve(null);
+
+/* ---- Unlock bridge (AdGuard on the home network) ---- */
+let BR = {}; // { url, key } in its own key, so "Reset everything" doesn't forget it
+try { BR = JSON.parse(localStorage.getItem(KEY + "-bridge") || "{}") || {}; } catch (e) {}
+function bridge(path, body) {
+  if (!BR.url || !BR.key) return Promise.resolve(null); // not set up: the app works as before
+  const ctl = new AbortController(); setTimeout(() => ctl.abort(), 6000);
+  // text/plain keeps POSTs "simple" (no CORS preflight); the bridge reads the JSON body either way.
+  const opts = body ? { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ ...body, key: BR.key }) } : {};
+  return fetch(BR.url.replace(/\/+$/, "") + path, { ...opts, signal: ctl.signal })
+    .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j; }));
+}
 const $ = (s) => document.querySelector(s);
 const scr = $("#screen");
 
@@ -342,7 +358,7 @@ function go(view) {
   if (view === "ttt") { if (S.gamesLeft <= 0) S.gamesLeft = Math.max(1, S.session); return startTTT(); }
   if (view === "chess") return startChess();
   if (view === "watching" && S.left <= 0) S.left = 18 * 60 + 40;
-  if (view === "timeup") { S.left = 0; S.endAt = 0; }
+  if (view === "timeup") { S.left = 0; S.endAt = 0; bridge("/lock", {}).catch(() => {}); }
   render(); save();
   if (view === "watching") runClock();
 }
@@ -404,12 +420,16 @@ function render() {
     scr.innerHTML = '<div class="stamp">Videos unlocked</div><div class="clock">' + fmt(S.left) + '</div>' +
       '<p class="sub">Great job, Cooper! You have ' + Math.round(S.left / 60) + ' minutes of videos' + (S.left > RULES.rewardMins * 60 ? ' (' + RULES.rewardMins + ' + your bonus)' : "") + '. The clock starts when you tap Go watch.</p>' +
       '<a class="big alt" id="watch" href="' + RULES.videoUrl + '">▶ Go watch</a><p class="note">Opens the YouTube app. Come back here to see your time left. <a href="' + RULES.videoWebUrl + '" target="_blank" rel="noopener">Open in Safari instead</a></p>';
-    $("#watch").onclick = () => { S.endAt = Date.now() + S.left * 1000; go("watching"); };
+    $("#watch").onclick = (e) => {
+      // Unblock first so YouTube works the moment it opens; open it anyway if the bridge is slow or unreachable.
+      e.preventDefault(); S.endAt = Date.now() + S.left * 1000; go("watching");
+      unlocking.finally(() => { location.href = RULES.videoUrl; });
+    };
   } else if (v === "watching") {
     scr.innerHTML = '<h2>Video time left</h2><div class="clock" id="clock">' + fmt(S.left) + '</div>' +
       '<p class="sub" id="warn">Enjoy your videos!</p>' +
       '<a class="big alt" href="' + RULES.videoUrl + '">▶ Back to YouTube</a>' +
-      '<p class="note">The clock keeps running while you watch. It gives a 5-minute warning.</p>';
+      '<p class="note">The clock keeps running while you watch. It gives a 5-minute warning.</p><p class="note" id="bstat"></p>';
   } else if (v === "timeup") {
     scr.innerHTML = '<h1>Video time is over</h1>' + bankHTML() +
       '<p class="sub">Want more videos? Earn more tickets with math probes.</p>' +
@@ -420,6 +440,11 @@ function render() {
 function runClock() {
   // Wall-clock based so time keeps counting while the YouTube app is in front.
   if (!S.endAt) S.endAt = Date.now() + S.left * 1000;
+  // Re-send the unlock with the time remaining each time the clock (re)starts, so a missed request heals itself.
+  const mins = Math.ceil(Math.max(0, S.endAt - Date.now()) / 60000);
+  unlocking = (mins > 0 ? bridge("/unlock", { minutes: mins }) : Promise.resolve(null)).catch(() => {
+    const b = $("#bstat"); if (b) b.textContent = "Couldn't reach the unlock server, so videos may still be blocked. Ask Dad.";
+  });
   let warned = false;
   const step = () => {
     if (S.speed > 1) S.endAt -= (S.speed - 1) * 1000;
@@ -766,7 +791,20 @@ $("#plink").onclick = openPin;
 $("#pinCancel").onclick = () => { $("#pinwrap").hidden = true; };
 $("#lock").onclick = () => { $("#parent").open = false; $("#parent").hidden = true; };
 $("#setPin").onclick = () => { const p = $("#newPin").value.trim(); if (!/^\d{4,6}$/.test(p)) { $("#pinNote").textContent = "Use 4 to 6 digits."; return; } S.pin = p; $("#newPin").value = ""; $("#pinNote").textContent = "PIN changed."; save(); };
-$("#bonusPlus").onclick = () => { S.bonusSecs = Math.min(RULES.bonusMaxSecs, S.bonusSecs + 60); save(); if (["home","spend","result"].includes(S.view)) render(); };
+$("#bUrl").value = BR.url || ""; $("#bKey").value = BR.key || "";
+$("#bSave").onclick = () => {
+  BR = { url: $("#bUrl").value.trim(), key: $("#bKey").value.trim() };
+  try { localStorage.setItem(KEY + "-bridge", JSON.stringify(BR)); $("#bNote").textContent = "Saved on this device. Tap Test to check it."; }
+  catch (e) { $("#bNote").textContent = "Couldn't save on this device."; }
+};
+$("#bTest").onclick = () => {
+  if (!BR.url || !BR.key) { $("#bNote").textContent = "Enter the address and key, then tap Save."; return; }
+  $("#bNote").textContent = "Checking…";
+  bridge("/check", {}).then(() => bridge("/status"))
+    .then(j => { $("#bNote").textContent = "Connected, key OK. Videos are " + (j.unlocked ? "unlocked" + (j.seconds_left ? " (" + fmt(j.seconds_left) + " left)" : "") : "blocked") + "."; })
+    .catch(e => { $("#bNote").textContent = "Problem: " + (e.name === "AbortError" ? "no answer" : e.message) + ". Is Tailscale on, and are the address and key right?"; });
+};
+$("#bonusPlus").onclick =() => { S.bonusSecs = Math.min(RULES.bonusMaxSecs, S.bonusSecs + 60); save(); if (["home","spend","result"].includes(S.view)) render(); };
 $("#bonusMinus").onclick = () => { S.bonusSecs = Math.max(0, S.bonusSecs - 60); save(); if (["home","spend","result"].includes(S.view)) render(); };
 $("#vpass").onclick = () => { S.videoPass = true; save(); if (["home","spend"].includes(S.view)) render(); };
 $("#bankPlus").onclick = () => { S.bank++; save(); if (["home","spend","store","result","timeup"].includes(S.view)) render(); };
