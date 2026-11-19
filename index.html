@@ -421,14 +421,17 @@ function render() {
       '<p class="sub">Great job, Cooper! You have ' + Math.round(S.left / 60) + ' minutes of videos' + (S.left > RULES.rewardMins * 60 ? ' (' + RULES.rewardMins + ' + your bonus)' : "") + '. The clock starts when you tap Go watch.</p>' +
       '<a class="big alt" id="watch" href="' + RULES.videoUrl + '">▶ Go watch</a><p class="note">Opens the YouTube app. Come back here to see your time left. <a href="' + RULES.videoWebUrl + '" target="_blank" rel="noopener">Open in Safari instead</a></p>';
     $("#watch").onclick = (e) => {
-      // Unblock first so YouTube works the moment it opens; open it anyway if the bridge is slow or unreachable.
-      e.preventDefault(); S.endAt = Date.now() + S.left * 1000; go("watching");
-      unlocking.finally(() => { location.href = RULES.videoUrl; });
+      // With a bridge set up, stay here until AdGuard confirms the unlock; Cooper then taps "Open YouTube".
+      // iPad Safari won't open the YouTube app from a script after waiting on the network (the tap "expires"),
+      // and leaving the page right away can cancel the unlock request, so the app opens from a fresh tap.
+      // Without a bridge, the link opens YouTube straight away as before.
+      if (BR.url && BR.key) e.preventDefault();
+      S.endAt = Date.now() + S.left * 1000; go("watching");
     };
   } else if (v === "watching") {
     scr.innerHTML = '<h2>Video time left</h2><div class="clock" id="clock">' + fmt(S.left) + '</div>' +
       '<p class="sub" id="warn">Enjoy your videos!</p>' +
-      '<a class="big alt" href="' + RULES.videoUrl + '">▶ Back to YouTube</a>' +
+      '<a class="big alt" href="' + RULES.videoUrl + '">▶ Open YouTube</a>' +
       '<p class="note">The clock keeps running while you watch. It gives a 5-minute warning.</p><p class="note" id="bstat"></p>';
   } else if (v === "timeup") {
     scr.innerHTML = '<h1>Video time is over</h1>' + bankHTML() +
@@ -442,9 +445,13 @@ function runClock() {
   if (!S.endAt) S.endAt = Date.now() + S.left * 1000;
   // Re-send the unlock with the time remaining each time the clock (re)starts, so a missed request heals itself.
   const mins = Math.ceil(Math.max(0, S.endAt - Date.now()) / 60000);
-  unlocking = (mins > 0 ? bridge("/unlock", { minutes: mins }) : Promise.resolve(null)).catch(() => {
-    const b = $("#bstat"); if (b) b.textContent = "Couldn't reach the unlock server, so videos may still be blocked. Ask Dad.";
-  });
+  const bs = (t) => { const b = $("#bstat"); if (b) b.textContent = t; };
+  if (mins > 0 && BR.url && BR.key) {
+    bs("Unlocking videos… wait a moment, then tap Open YouTube.");
+    unlocking = bridge("/unlock", { minutes: mins })
+      .then(() => bs("✅ Videos are unlocked. Tap Open YouTube."))
+      .catch((e) => bs("Couldn't unlock videos (" + (e.name === "AbortError" ? "no answer" : e.message) + "). Is Tailscale on? Ask Dad."));
+  } else unlocking = Promise.resolve(null);
   let warned = false;
   const step = () => {
     if (S.speed > 1) S.endAt -= (S.speed - 1) * 1000;
